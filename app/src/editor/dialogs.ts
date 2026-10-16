@@ -477,7 +477,7 @@ export function showOptionsDialog(app: App): void {
   lyricToggle.type = "checkbox";
   lyricToggle.checked = app.showLyrics;
   lyricToggle.onchange = () => app.setShowLyrics(lyricToggle.checked);
-  lyricOption.append(lyricToggle, "显示歌词（谱面与图形导出，不改原稿）");
+  lyricOption.append(lyricToggle, t('nota.ia.lyricsOutputHint'));
   pJianpu.append(lyricOption);
   for (const mode of ["explicit", "measure"] as const) {
     const label = document.createElement("label");
