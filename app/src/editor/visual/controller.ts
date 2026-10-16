@@ -1501,7 +1501,11 @@ export class VisualEditController {
       },
       run: (a, key) => ctl.runChecked(a, key),
       available: (a) => ctl.available(a),
-      refocus: () => ctl.host.scorePane.focus({ preventScroll: true }),
+      refocus: () => {
+        // Some palette/menu actions start an inline editor synchronously. Taking
+        // focus back here would blur it and commit an empty value immediately.
+        if (!inlineEditing()) ctl.host.scorePane.focus({ preventScroll: true });
+      },
     };
   }
 
