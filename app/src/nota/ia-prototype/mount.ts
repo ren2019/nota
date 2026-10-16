@@ -2,8 +2,8 @@
 // Question: which structure best serves making/printing first, phone practice
 // second, and occasional expert editing third? All state is in memory.
 import "./prototype.css";
-import { buildPalette } from "../../editor/visual/menu";
-import type { VisualMode } from "../../editor/visual/keys";
+import { notaLogo, logoNames } from "./logos";
+import { mountDolceWorkspace } from "./dolce-workspace";
 
 type Variant = "A" | "B" | "C";
 type Scene = "new" | "review" | "practice";
@@ -12,12 +12,12 @@ const steps = ["带入曲谱", "校对原谱", "调整练习谱", "排版与交�
 const titles = ["小星星", "两只老虎", "莫斯科郊外的晚上", "字母歌", "苏珊娜", "义勇军进行曲", "国际歌", "摇篮曲", "马赛曲", "星条旗", "苏联国歌", "小星星 · 原图校对"];
 const esc = (s: string) => s.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 let variant: Variant = "A", scene: Scene = "review", phone = false, compare = false;
-let phoneWidth = 390;
+let phoneWidth = 390, logoVersion = 1;
 let s = fresh();
 let root: HTMLElement;
 function fresh() {
   return { title: "小星星", loaded: true, source: "示例图片", step: 1, doubts: 2,
-    mode: "renotate", target: "C", applied: false, font: "大字", lyrics: true,
+    mode: "renotate", target: "C", applied: false, font: "大字", lyrics: true, paper: "A4 · 竖向",
     saved: false, playing: false, inspector: "校对", space: "制作", page: "work",
     sourceCode: false, original: true, selected: 0, query: "", searched: false,
     notice: "", output: "PDF", note: "", panel: false, speed: "1×", looping: false, dolceMode: "edit", dolceOriginal: false };
@@ -27,7 +27,7 @@ function btn(text: string, action: string, kind = "", val = "") {
 }
 function chip(text: string, cls = "") { return '<span class="chip ' + cls + '">' + text + "</span>"; }
 function brand() {
-  return '<a class="brand" href="?variant=' + variant + '"><svg class="brand-logo" viewBox="0 0 64 64" width="32" height="32" aria-hidden="true"><rect width="64" height="64" rx="16" fill="#a8d9b5"/><path d="M21 45V18l25 25V16" fill="none" stroke="#15291b" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><ellipse cx="16.5" cy="46.5" rx="7.5" ry="5" transform="rotate(-22 16.5 46.5)" fill="#15291b"/><ellipse cx="41.5" cy="44.5" rx="7.5" ry="5" transform="rotate(-22 41.5 44.5)" fill="#15291b"/></svg><span>Nota<small>轻松制作乐谱<span lang="en">A simple way to make sheet music.</span></small></span></a>';
+  return '<a class="brand" href="?variant=' + variant + '" title="查看 Logo 方案" data-act="logos">' + notaLogo(logoVersion) + '<span>Nota<small>轻松制作乐谱<span lang="en">A simple way to make sheet music.</span></small></span></a>';
 }
 function github() { return '<a class="github" href="https://github.com/ren2019/nota" target="_blank" rel="noreferrer" aria-label="Nota GitHub 项目"><svg viewBox="0 0 24 24" width="21" height="21" aria-hidden="true"><path fill="currentColor" d="M12 1a11 11 0 0 0-3.48 21.44c.55.1.75-.24.75-.53v-2.05c-3.06.66-3.7-1.3-3.7-1.3-.5-1.27-1.22-1.61-1.22-1.61-1-.68.08-.67.08-.67 1.1.08 1.68 1.13 1.68 1.13.98 1.68 2.57 1.2 3.2.92.1-.71.38-1.2.7-1.47-2.44-.28-5-1.22-5-5.44 0-1.2.43-2.18 1.13-2.95-.12-.28-.49-1.4.1-2.91 0 0 .92-.3 3.03 1.13a10.4 10.4 0 0 1 5.5 0C17.08 5.26 18 5.56 18 5.56c.6 1.51.23 2.63.12 2.91.7.77 1.12 1.75 1.12 2.95 0 4.23-2.57 5.16-5.02 5.43.4.35.75 1.02.75 2.06v3c0 .3.2.64.76.53A11 11 0 0 0 12 1Z"/></svg></a>'; }
 function docHead() {
@@ -106,37 +106,27 @@ function glyph(name: string) {
 function detailTool(label: string, icon: string, tool: string) {
   return btn(glyph(icon) + '<span>' + label + '</span>', "detailTool", s.panel && s.inspector === tool ? "selected" : "", tool);
 }
-// Reuse Dolce's existing palette renderer and action table; only the runner is a stub.
-function dolcePanel() {
-  return '<section class="bd-dolce"><div class="bd-dolce-head"><strong>Dolce 记号面板</strong><span>' + (s.dolceMode === "insert" ? "插入" : "编辑") + '</span></div><div class="bd-dolce-views">' + btn(s.dolceOriginal ? "收起原图" : "原图对照", "dolceOriginal", "secondary") + btn(s.sourceCode ? "隐藏源码" : "源码", "code", "secondary") + '</div>' + (s.dolceOriginal ? original() : '') + (s.sourceCode ? '<pre class="code">X:1\nT:小星星\nM:4/4\nK:1=bE\n1 1 5 5 | 6 6 5 - |\nw:一闪一闪亮晶晶</pre>' : '') + '<div id="dolce-original-palette" class="visual-palette" aria-label="Dolce 原有记号面板"></div><p class="bd-dolce-note">原面板交互演示，未连接实际改谱。</p></section>';
+function compactConversion() {
+  return '<section class="bd-compact"><div class="bd-conversion-choices">' +
+    ['renotate','transpose'].map((mode, i) => '<label class="bd-radio"><input type="radio" name="conversion" data-field="mode" value="' + mode + '" ' + (s.mode === mode ? 'checked' : '') + '><strong>' + ['保持音高，换记谱基准','实际移调'][i] + '</strong></label>').join('') +
+    '</div><label class="bd-inline-field">目标基准<select data-field="target">' + ['C','D♭','D','E♭','E','F','F♯','G','A♭','A','B♭','B'].map(k => '<option ' + (s.target === k ? 'selected' : '') + '>' + k + '</option>').join('') + '</select></label><p class="bd-short-help">' + (s.mode === 'renotate' ? '声音与音区不变，重算数字和升降号。' : '声音随目标调改变，保留数字关系。') + '</p>' + (s.applied ? btn('还原到原谱', 'undo', 'text') : '') + '</section>';
 }
-function mountDolcePalette() {
-  const palette = root.querySelector<HTMLElement>("#dolce-original-palette");
-  if (!palette) return;
-  const refresh = buildPalette(palette, {
-    get mode() { return s.dolceMode as VisualMode; },
-    surface: "jianpu",
-    run(a, key) {
-      if (a.id === "mode.insert" || a.id === "mode.edit") {
-        s.dolceMode = a.id === "mode.insert" ? "insert" : "edit";
-        render();
-      } else action("notice", "Dolce 原面板：" + a.label + (key ? " " + key : "") + "（仅演示，未改动谱面）");
-      return true;
-    },
-    refocus() {},
-  });
-  refresh();
-  // Keep upstream button titles and symbols; expose the full labels to touch / assistive users.
-  for (const b of palette.querySelectorAll<HTMLButtonElement>("button")) b.setAttribute("aria-label", b.title);
+function compactOutput() {
+  return '<section class="bd-compact"><div class="bd-output-fields"><label>纸张<select data-field="paper"><option ' + (s.paper === 'A4 · 竖向' ? 'selected' : '') + '>A4 · 竖向</option><option ' + (s.paper === 'A4 · 横向' ? 'selected' : '') + '>A4 · 横向</option></select></label><label>字号<select data-field="font">' + ['标准','大字','特大'].map(v => '<option ' + (s.font === v ? 'selected' : '') + '>' + v + '</option>').join('') + '</select></label></div><label class="check"><input type="checkbox" data-field="lyrics" ' + (s.lyrics ? 'checked' : '') + '>显示歌词</label><div class="bd-output-buttons">' + btn('PDF / 打印', 'export', 'primary', 'PDF') + btn('PNG 图片', 'export', 'secondary', 'PNG') + '</div><details class="bd-other-formats"><summary>其他导出格式</summary><div class="row">' + ['MusicXML','MIDI','PPTX'].map(v => btn(v,'export','text',v)).join('') + '</div></details></section>';
 }
-function detailPanel(reading: boolean) {
+function detailPanel() {
   const title = s.inspector;
-  const body = title === "编辑" ? dolcePanel() :
-    title === "调式" ? conversion() : title === "导出" ? output() : title === "练习设置" ?
-      '<section class="control-section"><p class="field-title">播放速度</p><div class="bd-options">' + ["0.5×", "0.75×", "1×", "1.25×"].map(v => btn(v, "detailSpeed", s.speed === v ? "selected" : "secondary", v)).join("") + '</div><p class="field-title">谱面字号</p><div class="bd-options">' + ["标准", "大字", "特大"].map(v => btn(v, "detailFont", s.font === v ? "selected" : "secondary", v)).join("") + '</div><label class="check"><input type="checkbox" data-field="lyrics" ' + (s.lyrics ? "checked" : "") + '>显示歌词</label><p class="muted">阅读设置在本次演示中保留。</p></section>' :
-      '<section class="control-section"><h2>这首曲子</h2><p class="muted">' + esc(s.title) + ' · ' + (s.applied ? '练习谱 1=' + esc(s.target) : '原谱 1=E♭') + '</p><div class="bd-more-list">' + btn("打印与分享", "detailTool", "secondary", "导出") + btn("阅读与播放设置", "detailTool", "secondary", "练习设置") + (reading ? "" : btn("Dolce 原有编辑面板", "detailTool", "secondary", "编辑")) + '</div></section>';
+  const body = title === "调式" ? compactConversion() : title === "导出" ? compactOutput() : title === "练习设置" ?
+      '<section class="control-section"><p class="field-title">播放速度</p><div class="bd-options">' + ["0.5×", "0.75×", "1×", "1.25×"].map(v => btn(v, "detailSpeed", s.speed === v ? "selected" : "secondary", v)).join("") + '</div><p class="field-title">谱面字号</p><div class="bd-options">' + ["标准", "大字", "特大"].map(v => btn(v, "detailFont", s.font === v ? "selected" : "secondary", v)).join("") + '</div><label class="check"><input type="checkbox" data-field="lyrics" ' + (s.lyrics ? "checked" : "") + '>显示歌词</label></section>' :
+      '<section class="bd-compact"><div class="bd-more-list">' + btn("打印与分享", "detailTool", "secondary", "导出") + btn("阅读与播放设置", "detailTool", "secondary", "练习设置") + btn("下载源稿 · 123", "export", "secondary", "123 源稿（保存到设备）") + '</div></section>';
   const footer = title === "调式" ? '<footer class="bd-panel-footer">' + btn("应用并预览", "apply", "primary full") + '</footer>' : '';
-  return '<aside class="bd-panel" role="region" aria-label="' + title + '工具"><div class="bd-panel-handle"></div><header class="bd-panel-head"><strong>' + title + '</strong>' + btn(glyph("close") + '<span class="sr-only">关闭工具</span>', "closePanel", "bd-icon") + '</header><div class="bd-panel-scroll">' + body + '</div>' + footer + '</aside>';
+  return '<aside class="bd-panel" role="dialog" aria-modal="true" aria-label="' + title + '"><header class="bd-panel-head"><strong>' + title + '</strong>' + btn(glyph("close") + '<span class="sr-only">关闭弹窗</span>', "closePanel", "bd-icon") + '</header><div class="bd-panel-scroll">' + body + '</div>' + footer + '</aside>';
+}
+function logoPage() {
+  return '<main class="logo-page"><div class="section-head"><h1>Nota 标识方案</h1>' + btn('返回页面','returnView','secondary') + '</div><p class="muted">三版均用细斜线连接音符，音符头中心落在五线谱线上。选择后可回到首页查看实际尺寸；尚未定稿。</p><div class="logo-grid">' + [1,2,3].map(v => '<section class="logo-concept ' + (logoVersion === v ? 'chosen' : '') + '"><div class="logo-hero">' + notaLogo(v,'concept-mark') + '</div><h2>' + logoNames[v] + '</h2><div class="logo-size-row">' + notaLogo(v) + '<strong>Nota</strong><span>24px</span>' + notaLogo(v,'logo-tiny') + '</div><p class="muted">' + ['保留薄荷色，五线谱铺满底面。','圆章留白，两个音符形成更大的高低差。','深色底配浅绿音符，提高小尺寸对比。'][v-1] + '</p>' + btn(logoVersion === v ? '正在预览' : '预览这版', 'logoPick', logoVersion === v ? 'primary full' : 'secondary full', String(v)) + '</section>').join('') + '</div></main>';
+}
+function editorPage() {
+  return '<main class="dolce-page"><header class="dolce-page-nav">' + btn('← 返回曲子详情','returnView','secondary') + '<span><strong>' + esc(s.title) + '</strong><small>Dolce 编辑器布局原型</small></span></header><iframe id="dolce-workspace-frame" title="Dolce 独立编辑页面" class="dolce-workspace-frame"></iframe><p class="muted">沿用 Dolce 原布局与响应式规则；源码、谱面及工具交互为占位演示，未连接真实编辑引擎。</p></main>';
 }
 function detailPlayer() {
   return '<footer class="bd-player" aria-label="练习播放控制"><div class="bd-progress"><span>' + (s.playing ? "0:08" : "0:00") + '</span><input type="range" min="0" max="33" value="' + (s.playing ? 8 : 0) + '" aria-label="播放进度（演示）" data-field="position"><span>0:33</span></div><div class="bd-transport">' +
@@ -150,13 +140,13 @@ export function VariantB() {
   if (s.page === "library") return header(btn("返回曲谱", "back", "text")) + '<main class="b-library">' + library() + sourceChooser() + '</main>';
   if (!s.loaded) return header() + '<main class="b-library">' + sourceChooser() + library() + '</main>';
   const reading = s.space === "练习";
-  return '<section data-song="' + esc(s.title) + '" class="bd-shell ' + (reading ? 'is-practice ' : 'is-edit ') + (s.panel ? 'has-panel ' : '') + 'bd-font-' + (s.font === "特大" ? 'xl' : s.font === "大字" ? 'lg' : 'md') + '" aria-label="曲子详情"><header class="bd-appbar">' +
+  return '<section data-song="' + esc(s.title) + '" class="bd-shell ' + (reading ? 'is-practice ' : 'is-edit ') + (s.panel ? 'has-panel has-modal ' : '') + 'bd-font-' + (s.font === "特大" ? 'xl' : s.font === "大字" ? 'lg' : 'md') + '" aria-label="曲子详情"><header class="bd-appbar">' +
     btn(glyph("back") + '<span class="sr-only">返回曲谱库</span>', "library", "bd-icon") +
     '<div class="bd-song"><h1>' + esc(s.title) + '</h1><small>' + (s.saved ? (reading ? '曲谱库 · 演示曲谱' : '已模拟保存到曲谱库') : '当前编辑稿 · 未保存') + '</small></div>' +
-    (reading ? btn(glyph("more") + '<span class="sr-only">更多曲谱操作</span>', "detailTool", "bd-icon", "更多") : btn("保存", "save", "bd-save")) + '</header>' +
+    (reading ? btn(glyph("more") + '<span class="sr-only">更多曲谱操作</span>', "detailTool", "bd-icon", "更多") : '<div class="bd-doc-actions">' + btn("存曲谱库", "save", "bd-save") + btn("下载源稿", "export", "bd-source", "123 源稿（保存到设备）") + '</div>') + '</header>' +
     '<div class="bd-mode-row"><nav class="bd-mode" aria-label="曲子使用模式">' + btn("练习", "detailMode", reading ? "selected" : "", "练习") + btn("编辑", "detailMode", reading ? "" : "selected", "编辑") + '</nav><span class="bd-mode-hint">' + (reading ? '安心看谱，操作不会改动音符' : '调式、导出，以及 Dolce 原有编辑工具') + '</span></div>' +
-    '<div class="bd-workspace"><main class="bd-score-scroll"><div class="bd-score-context"><span>' + (s.applied ? '练习谱 · 1=' + esc(s.target) : '原谱 · 1=E♭') + ' · 4/4</span>' + '<span>简谱 · 8 小节</span>' + '</div><div class="bd-paper">' + score(true) + '</div>' + (reading ? '<p class="bd-end">— 本页结束 —</p>' : '<p class="bd-edit-help">' + (s.inspector === '编辑' && s.panel ? 'Dolce 原有面板，按原有方式编辑谱面' : '谱面保持在眼前，需要时再打开下方工具') + '</p>') + '</main>' +
-    (s.panel ? btn('<span class="sr-only">收起工具面板</span>', 'closePanel', 'bd-backdrop') + detailPanel(reading) : '') + '</div>' +
+    '<div class="bd-workspace"><main class="bd-score-scroll"><div class="bd-score-context"><span>' + (s.applied ? '练习谱 · 1=' + esc(s.target) : '原谱 · 1=E♭') + ' · 4/4</span>' + '<span>简谱 · 8 小节</span>' + '</div><div class="bd-paper">' + score(true) + '</div>' + (reading ? '<p class="bd-end">— 本页结束 —</p>' : '<p class="bd-edit-help">' + ('调式和导出快速处理，详细改谱进入独立编辑页') + '</p>') + '</main>' +
+    (s.panel ? btn('<span class="sr-only">收起工具面板</span>', 'closePanel', 'bd-backdrop') + detailPanel() : '') + '</div>' +
     (reading ? detailPlayer() : '<nav class="bd-edit-dock" aria-label="编辑工具">' + detailTool('调式', 'tune', '调式') + detailTool('导出', 'share', '导出') + detailTool('编辑', 'edit', '编辑') + '</nav>') + '</section>';
 }
 export function VariantC() {
@@ -188,20 +178,36 @@ function render() {
   const oldSong = root?.querySelector<HTMLElement>(".bd-shell")?.dataset.song;
   const oldScroll = oldSong === s.title ? root?.querySelector<HTMLElement>(".bd-score-scroll")?.scrollTop || 0 : 0;
   document.body.classList.toggle("detail-prototype", variant === "B" && s.loaded && s.page === "work" && !compare);
-  const app = compare ? comparePage() : s.page === "find" ? findPage() : s.page === "candidate" ? header(btn("← 返回搜索", "backSearch", "text")) + '<main class="find-page"><span class="eyebrow">候选详情 · 演示</span><h1>' + esc(s.note) + '</h1><p>来源：OpenScore · 许可和声部在此确认</p><p class="muted">选择结果后再获取原谱、核对声部与数据。这里不把默认第一个声部当作检查结论。</p>' + btn("打开到制作空间", "adopt", "primary") + "</main>" : variant === "A" ? VariantA() : variant === "B" ? VariantB() : VariantC();
-  root.innerHTML = '<div class="lab"><strong>IA 原型 · 非正式页面</strong><span>仅交互演示，不执行识别、音频播放、转换、下载或入库</span><div>' + btn(phone ? "自适应宽度" : "手机 390", "phone") + (phone ? '<label class="device-size"><span class="sr-only">预览宽度</span><select id="device-width" aria-label="预览宽度">' + [360,390,430].map(w => '<option value="' + w + '" ' + (phoneWidth === w ? 'selected' : '') + '>' + w + '</option>').join('') + '</select></label>' : '') + btn("Dolce 对照", "compare") + '</div></div><div class="scene-bar"><span>体验场景</span>' +
+  const app = compare ? comparePage() : s.page === "logos" ? logoPage() : s.page === "dolce" ? editorPage() : s.page === "find" ? findPage() : s.page === "candidate" ? header(btn("← 返回搜索", "backSearch", "text")) + '<main class="find-page"><span class="eyebrow">候选详情 · 演示</span><h1>' + esc(s.note) + '</h1><p>来源：OpenScore · 许可和声部在此确认</p><p class="muted">选择结果后再获取原谱、核对声部与数据。这里不把默认第一个声部当作检查结论。</p>' + btn("打开到制作空间", "adopt", "primary") + "</main>" : variant === "A" ? VariantA() : variant === "B" ? VariantB() : VariantC();
+  root.innerHTML = '<div class="lab"><strong>IA 原型 · 非正式页面</strong><span>仅交互演示，不执行识别、音频播放、转换、下载或入库</span><div>' + btn(phone ? "宽屏" : "窄屏", "phone") + (phone ? '<label class="device-size"><span class="sr-only">预览宽度</span><select id="device-width" aria-label="预览宽度">' + [360,390,430].map(w => '<option value="' + w + '" ' + (phoneWidth === w ? 'selected' : '') + '>' + w + '</option>').join('') + '</select></label>' : '') + btn("Logo", "logos") + btn("对照", "compare") + '</div></div><div class="scene-bar"><span>体验场景</span>' +
     [["new", "首次制谱"], ["review", variant === "B" ? "编辑态" : "继续校对"], ["practice", variant === "B" ? "练习态" : "手机陪练"]].map(x => btn(x[1], "scene", scene === x[0] ? "active" : "", x[0])).join("") + '</div><div id="ia-device" class="' + (phone ? "phone" : "") + '"' + (phone ? ' style="max-width:' + (phoneWidth + 24) + 'px"' : '') + '><div id="ia-app" class="variant-' + variant + '"><div class="screen">' + app + '</div></div></div>' +
     (s.notice ? '<div class="notice" role="status">' + esc(s.notice) + btn("×", "dismiss", "text") + "</div>" : "") + stateView() +
     '<nav class="prototype-switcher" aria-label="切换 IA 方案">' + btn("←", "prevVariant", "", "") + '<div><small>切换结构 · ← →</small><strong>' + variant + " · " + names[variant] + '</strong></div>' + btn("→", "nextVariant") + '<select id="variant-select" aria-label="选择方案">' + (["A", "B", "C"] as Variant[]).map(v => '<option value="' + v + '" ' + (v === variant ? "selected" : "") + '>' + v + "</option>").join("") + "</select></nav>";
-  mountDolcePalette();
+  const editorFrame = root.querySelector<HTMLIFrameElement>("#dolce-workspace-frame");
+  if (editorFrame) mountDolceWorkspace(editorFrame, s.title);
   const nextScroll = root.querySelector<HTMLElement>(".bd-score-scroll");
   if (nextScroll) nextScroll.scrollTop = oldScroll;
   console.info("[THROWAWAY IA PROTOTYPE]", { variant, scene, ...s });
 }
+function snapshot() { return { s: { ...s }, variant, scene, phone, phoneWidth, logoVersion }; }
+function viewURL() {
+  const u = new URL(location.href);
+  if (s.page === "dolce" || s.page === "logos") u.searchParams.set("view", s.page === "dolce" ? "editor" : "logos");
+  else u.searchParams.delete("view");
+  return u;
+}
+function navigateView(page: string) {
+  if (s.page === page) return;
+  s.panel = false; s.playing = false;
+  history.replaceState({ ...history.state, ia: snapshot() }, "", location.href);
+  s.page = page;
+  history.pushState({ ia: snapshot(), viaPrototype: true }, "", viewURL()); render();
+}
 function url() {
-  const u = new URL(location.href); u.searchParams.set("variant", variant);
+  const u = viewURL(); u.searchParams.set("variant", variant);
   u.searchParams.set("scene", scene); u.searchParams.set("phone", phone ? "1" : "0"); u.searchParams.set("width", String(phoneWidth));
-  history.replaceState(null, "", u); render();
+  u.searchParams.set("logo", String(logoVersion));
+  history.replaceState({ ...history.state, ia: snapshot() }, "", u); render();
 }
 function changeVariant(v: string) {
   variant = (["A", "B", "C"].includes(v) ? v : "A") as Variant;
@@ -211,6 +217,9 @@ function changeVariant(v: string) {
 }
 function action(act: string, val: string) {
   s.notice = "";
+  if (act === "logos") return navigateView("logos");
+  if (act === "logoPick") { logoVersion = Number(val); return url(); }
+  if (act === "returnView") { if (history.state?.viaPrototype) history.back(); else { s.page = "work"; url(); } return; }
   if (act === "variant") return changeVariant(val);
   if (act === "nextVariant" || act === "prevVariant") return changeVariant(["A", "B", "C"][(["A", "B", "C"].indexOf(variant) + (act === "nextVariant" ? 1 : 2)) % 3]);
   if (act === "scene") {
@@ -231,6 +240,7 @@ function action(act: string, val: string) {
   if (act === "inspector") { s.inspector = val; s.panel = true; }
   if (act === "closePanel") s.panel = false;
   if (act === "detailMode") { s.space = val === "练习" ? "练习" : "制作"; scene = val === "练习" ? "practice" : "review"; s.panel = false; s.playing = false; }
+  if (act === "detailTool" && val === "编辑") return navigateView("dolce");
   if (act === "detailTool") { s.panel = !(s.panel && s.inspector === val); s.inspector = val; }
   if (act === "detailSpeed") s.speed = val;
   if (act === "detailFont") s.font = val;
@@ -241,7 +251,7 @@ function action(act: string, val: string) {
   if (act === "code") s.sourceCode = !s.sourceCode;
   if (act === "apply") { s.applied = true; s.saved = false; s.notice = "仅演示应用后的界面状态，未执行真实音乐转换。"; }
   if (act === "undo") s.applied = false;
-  if (act === "save") { s.saved = true; s.notice = "已模拟保存：只存在当前原型内存中，未写入正式曲谱库。"; }
+  if (act === "save") { s.saved = true; s.notice = "已模拟保存到曲谱库；未下载文件，未写入正式服务。"; }
   if (act === "export") { s.output = val; s.notice = "已演示交付 " + val + " 的入口；原型不生成或下载文件。"; }
   if (act === "play") { s.playing = !s.playing; s.notice = "仅演示试听状态，没有实际音频。"; }
   if (act === "loop") s.notice = "循环入口演示：选段后循环选段，未选则循环整首。";
@@ -269,6 +279,9 @@ export function mountIAPrototype(defaultVariant: Variant = "A") {
   phone = p.get("phone") === "1"; phoneWidth = [360,390,430].includes(Number(p.get("width"))) ? Number(p.get("width")) : 390; s = fresh();
   if (scene === "new") { s.loaded = false; s.step = 0; }
   if (scene === "practice") { if (variant === "B") s.saved = true; s.space = "练习"; s.page = variant === "C" ? "reading" : "work"; }
+  if ([1,2,3].includes(Number(p.get("logo")))) logoVersion = Number(p.get("logo"));
+  if (p.get("view") === "editor") s.page = "dolce";
+  if (p.get("view") === "logos") s.page = "logos";
   document.title = "Nota IA 原型 · A / B / C";
   document.body.className = "ia-prototype"; document.body.innerHTML = '<div id="ia-prototype"></div>';
   root = document.getElementById("ia-prototype")!;
@@ -285,10 +298,17 @@ export function mountIAPrototype(defaultVariant: Variant = "A") {
     else if (field === "mode") s.mode = f.value;
     else if (field === "target") s.target = f.value;
     else if (field === "font") s.font = f.value;
+    else if (field === "paper") s.paper = f.value;
     else { s.notice = "仅演示此设置的位置。"; }
     render();
   });
   root.addEventListener("submit", e => { e.preventDefault(); action("search", ""); });
+  window.addEventListener("popstate", e => {
+    const keepLogo = logoVersion;
+    if (e.state?.ia) { const snap = e.state.ia; s = snap.s; variant = snap.variant; scene = snap.scene; phone = snap.phone; phoneWidth = snap.phoneWidth; logoVersion = snap.logoVersion; }
+    else s.page = "work";
+    logoVersion = keepLogo; url();
+  });
   window.addEventListener("keydown", e => {
     if (e.key === "Escape" && s.panel) { e.preventDefault(); action("closePanel", ""); return; }
     if ((e.target as Element)?.closest("input,textarea,select,[contenteditable]")) return;
