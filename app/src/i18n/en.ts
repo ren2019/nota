@@ -781,6 +781,7 @@ export const en: Record<MsgKey, string> = {
   "fs.failed": "Conversion failed: {error}",
   "fs.converted": "Converted to {format} (not saved; the original file is untouched — switch back to “original” to restore)",
   "omr.formatSwitched": "Output format switched to {format} (not re-recognized)",
+  "omr.noNotesFound": "No notes were recognized. The current score is preserved. Check the image or choose another one.",
   "omr.running": "Recognizing… this may take a few dozen seconds",
   "omr.done": "Recognition done ({sec}s)",
   "omr.beatIssues": "; {n} measure(s) don't match the time signature (marked red in the proofing view — usually a misread dash or underline)",

@@ -6,7 +6,7 @@ import { ensureFontsReady } from "./common/measure";
 import { asset } from "./common/asset";
 import { App, type ViewMode } from "./editor/app";
 import { IMAGE_EXT, IMAGE_ACCEPT, isDocFile, isImageFile } from "./common/filetypes";
-import { showOptionsDialog, showHanConvDialog, openFilePicker } from "./editor/dialogs";
+import { showOptionsDialog, showHanConvDialog, openFilePicker, openModal } from "./editor/dialogs";
 import { showPartsPanel } from "./editor/parts";
 import { showExportDialog, showSaveAsDialog } from "./editor/export";
 import { showHelpDialog } from "./editor/help";
@@ -171,6 +171,17 @@ async function boot() {
       retry.onclick=() => recognizeFromPicker();startFeedback.append(' ',retry);
     }
   };
+  const showRecognitionFailure = () => {
+    const message=app.status || t('start.recognizeFailed');
+    if(detail.screen === 'library') {setStartFeedback(message,true);return;}
+    // Dragging an image can start from detail, where the professional status bar
+    // is hidden. Keep the failure and its retry reachable on the current screen.
+    const body=document.createElement('p');body.textContent=message;body.setAttribute('role','alert');
+    const dismiss=document.createElement('button');dismiss.type='button';dismiss.textContent=t('nota.ia.close');
+    const retry=document.createElement('button');retry.type='button';retry.textContent=t('nota.ia.chooseImagesAgain');
+    const {close}=openModal({title:t('start.recognizeFailed'),body:[body],footer:[dismiss,retry]});
+    dismiss.onclick=close;retry.onclick=() => {close();recognizeFromPicker();};
+  };
   const mobileCodeBtn = document.getElementById("btn-mobile-code") as HTMLButtonElement;
   const mobileScoreBtn = document.getElementById("btn-mobile-score") as HTMLButtonElement;
   const setMobileView = (view: "code" | "score") => {
@@ -189,9 +200,7 @@ async function boot() {
         library.detach();
         setMobileView("score");
         revealWorkspace();
-      } else if (appRoot.classList.contains("is-starting")) {
-        setStartFeedback(app.status || t("start.recognizeFailed"),true);
-      }
+      } else showRecognitionFailure();
     },
   });
 
@@ -343,9 +352,7 @@ async function boot() {
         library.detach();
         setMobileView("score");
         revealWorkspace();
-      } else if (appRoot.classList.contains("is-starting")) {
-        setStartFeedback(app.status || t("start.recognizeFailed"),true);
-      }
+      } else showRecognitionFailure();
     },
   });
 
