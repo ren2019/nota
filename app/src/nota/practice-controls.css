@@ -1,8 +1,12 @@
 /* Only the reading route changes. Original Dolce toolbar and print layout keep their own geometry. */
 #app[data-nota-screen="detail"][data-nota-mode="practice"] #nota-practice-controls { background:#fdfef9; color:#254e38; border-top:1px solid #d4ddce; padding:8px max(12px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left)); }
 .nota-play-progress, .nota-play-actions { display:flex; align-items:center; gap:8px; max-width:900px; margin:auto; }
-.nota-play-progress #play-progress { flex:1; width:0; min-width:0; height:32px; accent-color:#285e42; }
-.nota-play-progress #play-time { min-height:32px; color:#647562; white-space:nowrap; font-size:11px; }
+.nota-play-progress #play-progress { flex:1; width:0; min-width:0; height:32px; background:transparent; accent-color:#285e42; color-scheme:light; }
+.nota-play-progress #play-progress::-webkit-slider-runnable-track { height:4px; border-radius:2px; background:linear-gradient(to right,#285e42 var(--progress),#a1b0a3 var(--progress)); }
+.nota-play-progress #play-progress::-webkit-slider-thumb { width:16px; height:16px; margin-top:-6px; border:2px solid #fdfef9; background:#285e42; border-radius:50%; }
+.nota-play-progress #play-progress::-moz-range-track { height:4px; border-radius:2px; background:linear-gradient(to right,#285e42 var(--progress),#a1b0a3 var(--progress)); }
+.nota-play-progress #play-progress::-moz-range-thumb { width:12px; height:12px; border:2px solid #fdfef9; background:#285e42; border-radius:50%; }
+.nota-play-progress #play-time { min-height:32px; padding:0 4px; border:0; background:transparent; color:#45634e; white-space:nowrap; font-size:11px; font-variant-numeric:tabular-nums; cursor:pointer; }
 .nota-play-actions { justify-content:space-around; }
 .nota-play-actions > * { display:flex; justify-content:center; align-items:center; flex:1; min-width:0; }
 .nota-play-actions button, .nota-play-actions select { min-width:44px; min-height:48px; border:0; border-radius:12px; background:transparent; color:inherit; font-size:14px; cursor:pointer; }

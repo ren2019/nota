@@ -1,6 +1,8 @@
 // 界面文案（中文，同时是键的权威清单）。新增文字两边同加：en.ts 漏键 tsc 报错。
 // 占位写 {name}，由 t(key, { name }) 替换。
 export const zh = {
+  "nota.ia.lyricsOutputHint": "显示歌词（谱面与图形导出，不改原稿）",
+  "nota.ia.draftRecoveryFailed": "自动恢复稿暂时无法打开，原恢复记录仍保留。请返回曲谱库或重新选择原文件。",
   "nota.ia.scoreEditingActions": "曲谱编辑操作",
   "nota.ia.practiceControls": "练习控制",
   "nota.ia.backToScoreDetails": "返回曲谱详情",

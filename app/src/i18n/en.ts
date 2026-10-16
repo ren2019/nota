@@ -2,6 +2,8 @@
 import type { MsgKey } from "./zh";
 
 export const en: Record<MsgKey, string> = {
+  "nota.ia.lyricsOutputHint": "Show lyrics in score and graphical exports (keep original text)",
+  "nota.ia.draftRecoveryFailed": "The recovery draft could not be opened. Its record is kept. Return to the library or choose the original file again.",
   "nota.ia.scoreEditingActions": "Score editing actions",
   "nota.ia.practiceControls": "Practice controls",
   "nota.ia.backToScoreDetails": "Back to score details",

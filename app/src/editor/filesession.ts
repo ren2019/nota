@@ -245,7 +245,7 @@ export class FileSession {
       } else this.host.adoptText(d.docFormat as DocFormatId,d.text,d.filePath);
     } catch {
       this.lastRestoreFailed=true;
-      this.host.setStatus('自动恢复稿暂时无法打开，原恢复记录仍保留。请返回曲谱库或重新选择原文件。');
+      this.host.setStatus(t('nota.ia.draftRecoveryFailed'));
       return false;
     } finally {this.restoringDraft=false;}
     this._cleanText = null;
