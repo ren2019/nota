@@ -18,6 +18,8 @@ import { setupCompareSelect } from "./editor/comparemode";
 import { mountPracticePanel } from "./nota/panel";
 import { PRACTICE_SAMPLE } from "./nota/sample";
 import { mountLibrary } from "./nota/library";
+import { CurrentDocumentSession } from "./nota/document-session";
+import { mountDocumentDetail, type DetailMode, type DocumentDetail } from "./nota/detail";
 
 // 注册 Bravura 与 Bravura Text @font-face（替代 styles.css 里的静态声明），按 Vite base
 // 解析字体 URL。和弦内的 csym 字形必须走真实 Text 变体，不能用普通 Bravura 等比模拟。
@@ -50,7 +52,6 @@ async function boot() {
   const scorePane = document.getElementById("score-pane")!;
   const appRoot = document.getElementById("app")!;
   const workspace = document.getElementById("body")!;
-  const startScreen = document.getElementById("start-screen")!;
   const startFeedback = document.getElementById("start-feedback")!;
   const recognitionProgress = document.getElementById("recognition-progress")!;
 
@@ -125,18 +126,14 @@ async function boot() {
   ]).then(([layout, jianpuinput, fromxml, fromjpw, jpwfile, parse]) =>
     ({ ...layout, ...jianpuinput, ...fromxml, ...fromjpw, ...jpwfile, ...parse }));
 
-  const revealWorkspace = () => {
-    startScreen.hidden = true;
-    appRoot.classList.remove("is-starting");
-  };
-  const library = mountLibrary(app, revealWorkspace);
+  const session = new CurrentDocumentSession(app);
+  let detail: DocumentDetail;
+  const revealWorkspace = (mode: DetailMode = "edit") => detail.open(mode);
+  const library = mountLibrary(app, revealWorkspace, session);
+  detail = mountDocumentDetail(app, session, () => { void library.refresh(); });
+  // Extensions receive the same App/session/shell; no second document is created.
   app.saveToLibrary = library.save;
-  const showStartScreen = () => {
-    app.playback.stop();
-    void library.refresh();
-    startScreen.hidden = false;
-    appRoot.classList.add("is-starting");
-  };
+  const showStartScreen = () => detail.home();
   const openStarter = async (text: string, name: string) => {
     if (!(await app.confirmReplace())) return;
     library.detach();
@@ -375,6 +372,8 @@ async function boot() {
   if (await app.tryRestoreLastFile()) revealWorkspace();
   // 草稿：问要不要恢复
   if (await app.offerDraftRestore(draft)) revealWorkspace();
+
+  await detail.restoreInitialRoute();
 
   // 静默检查新版本（仅桌面版，自身还会判开关与 24h 节流）。延后是为了不和
   // 启动页、OMR 模型加载抢资源；查不到就什么都不做。
