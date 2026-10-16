@@ -383,3 +383,55 @@ equal(
   1,
   "Small accompaniment row applies the same measure carry policy",
 );
+
+for (const [name, doc] of fixtures) {
+  const mixed = loadScoreDoc(scoreDocToMusicXml(doc, { sourceIds: true }));
+  const before = JSON.stringify(mixed);
+  const sourceIds = doc.songs.flatMap((song) =>
+    song.parts.flatMap((part) =>
+      part.measures.flatMap((m) => m.elements.map((e) => e.id)),
+    ),
+  );
+  const mapped = mixed.songs.flatMap((song) =>
+    song.parts.flatMap((part) =>
+      part.measures.flatMap((m) =>
+        m.elements.flatMap((e) =>
+          e.kind === "chord" && e.srcId !== undefined ? [e.srcId] : [],
+        ),
+      ),
+    ),
+  );
+  if (!mapped.length || mapped.some((id) => !sourceIds.includes(id)))
+    throw new Error(
+      `${name}: mixed source IDs must reference the original editable elements`,
+    );
+  await painter.load({
+    view: "staff",
+    doc: mixed,
+    page: { widthPt: 595, heightPt: 842, override: true },
+    hideBarNumber: true,
+  });
+  const staffFlats = flatCount();
+  for (const mode of ["explicit", "measure"] as const) {
+    await painter.load({
+      view: "mixed",
+      doc: mixed,
+      page: { widthPt: 595, heightPt: 842, override: true },
+      hideBarNumber: true,
+      accidentalMode: mode,
+    });
+    equal(
+      flatCount() - staffFlats,
+      mode === "explicit" ? 2 : 1,
+      `${name}: derived mixed preview uses the same mode`,
+    );
+  }
+  equal(
+    JSON.stringify(mixed),
+    before,
+    `${name}: derived mixed music and source mapping stay unchanged`,
+  );
+}
+console.log(
+  "Jianpu origins: every supported origin retains mixed-view editing source mappings.",
+);

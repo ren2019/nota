@@ -13,7 +13,10 @@ await build({
   define: { "import.meta.env.BASE_URL": '"/"' },
 });
 const originalFetch = globalThis.fetch;
-const globals = ["DOMParser", "document", "localStorage"].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]);
+const globals = ["DOMParser", "document", "localStorage"].map((key) => [
+  key,
+  Object.getOwnPropertyDescriptor(globalThis, key),
+]);
 globalThis.fetch = async (input, ...args) => {
   if (
     input === "/redist/Bravura.otf" ||
