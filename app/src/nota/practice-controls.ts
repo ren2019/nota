@@ -52,6 +52,8 @@ export function mountPracticeControls(app: App, session: CurrentDocumentSession,
       }
       active=next;
     }
+    // Editing details share the document preview scale, never the professional editor's zoom.
+    if(detail.screen === 'detail') pane.style.setProperty('--nota-reading-scale',String(current().scale));
     if(next) {
       if(visibleKey !== detail.documentKey) { visibleKey=detail.documentKey; dialog.close(); }
       applyReading();

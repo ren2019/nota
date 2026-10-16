@@ -15,6 +15,8 @@
 #app[data-nota-screen="detail"] #body { display:flex; }
 #app[data-nota-screen="detail"] #score-pane-shell { display:flex !important; position:relative; inset:auto; min-width:0; }
 #app[data-nota-screen="detail"] #score-pane { margin:0; padding:16px; }
+/* Both detail tabs preview at the same width, independently of Dolce's editor zoom. */
+#app[data-nota-screen="detail"] .score-page-wrap { width:calc(min(var(--score-page-max),100%) * var(--nota-reading-scale,1)); }
 #app[data-nota-screen="detail"] #score-pane .vis-overlay { display:none; }
 #app[data-nota-screen="detail"] #score-pane > * { pointer-events:none; }
 #app[data-nota-screen="detail"] #nota-document-head { display:block; background:#fdfef9; color:#203d31; flex:0 0 auto; padding:env(safe-area-inset-top) max(16px,env(safe-area-inset-right)) 10px max(16px,env(safe-area-inset-left)); border-bottom:1px solid #d4ddce; }
