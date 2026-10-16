@@ -115,6 +115,16 @@ function modal(
   (body.querySelector("input,select") as HTMLElement | null)?.focus();
 }
 
+/** Unified library replacement gate: no mutation occurs until one explicit outcome resolves. */
+export function showUnsavedLibraryDialog(title:string, closing=false):Promise<'save' | 'discard' | 'cancel'> {
+  return new Promise(resolve => {
+    const body=document.createElement('p');
+    body.textContent=`「${title}」有尚未保存入库的修改。${closing ? '关闭前' : '替换当前稿前'}可以先保存到当前 Nota 服务的曲谱库；连接同一服务的家人可访问。`;
+    modal('保留当前曲谱的修改？',body,() => resolve('save'),() => resolve('cancel'),
+      {label:'放弃修改后继续',onClick:() => resolve('discard')},'保存后继续');
+  });
+}
+
 /** 一张表单对话框：确定时调 `onOk`（取消什么也不做）。 */
 export function showFormDialog(title: string, body: HTMLElement, onOk: () => void, okLabel?: string, onCancel?: () => void): void {
   modal(title, body, onOk, onCancel, undefined, okLabel);

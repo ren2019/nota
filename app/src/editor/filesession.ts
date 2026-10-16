@@ -24,6 +24,9 @@ export interface FileHost {
   readonly adapter: FormatAdapter;
   readonly omr: { snapshot(): ProjectSnapshot | null };
   getText(): string;
+  isDirty(): boolean;
+  confirmReplace(closing?: boolean): Promise<boolean>;
+  draftContext?: (() => Draft["nota"]) | null;
   setStatus(s: string): void;
   importBytes(bytes: Uint8Array, name: string): void;
   openProject(bytes: Uint8Array, name: string, opts?: { draft?: boolean }): Promise<boolean>;
@@ -70,7 +73,7 @@ export class FileSession {
 
   async openFile(): Promise<boolean> {
     // 没有没存的内容时不 await：浏览器版下面的 `input.click()` 得留在点击手势的同步调用栈里（Safari 隔一个 await 就不弹选文件框）
-    if (this.isDirty() && !(await this.confirmReplace())) return false;
+    if (this.host.isDirty() && !(await this.host.confirmReplace())) return false;
     if (isTauriRuntime()) {
       const { open } = await import("@tauri-apps/plugin-dialog");
       const { readFile } = await import("@tauri-apps/plugin-fs");
@@ -174,6 +177,13 @@ export class FileSession {
   // ---------------- 自动保存与崩溃恢复（`autosave.ts`） ----------------
   /** 与盘上（或刚打开时）一致的那份原文；null = 还没有这样一份（刚识别完、恢复的草稿） */
   _cleanText: string | null = null;
+  lastRestoreFailed=false;
+  private restoringDraft=false;
+  private draftSuspensions=0;
+  suspendDraftWrites():()=>void {
+    this.draftSuspensions++; clearTimeout(this._draftTimer);
+    return () => { this.draftSuspensions=Math.max(0,this.draftSuspensions-1); if(!this.draftSuspensions) this._scheduleDraft(); };
+  }
   private _draftTimer: ReturnType<typeof setTimeout> | undefined;
 
   /** 有没存的内容：与盘上（或刚打开时）那份不一样，或根本没有那样一份（刚识别完、恢复的草稿）。 */
@@ -191,15 +201,18 @@ export class FileSession {
   markClean(): void {
     this._cleanText = this.host.getText();
     clearTimeout(this._draftTimer);
-    void clearDraft();
+    if (this.restoringDraft || this.draftSuspensions) return;
+    if (this.host.isDirty()) this._scheduleDraft();
+    else void clearDraft();
   }
 
   /** 改过之后 3 秒存一份草稿；内容与盘上一致就删掉草稿。识别会话连原图一起打包（恢复后不必重新识别）。 */
   _scheduleDraft(): void {
     clearTimeout(this._draftTimer);
+    if(this.restoringDraft || this.draftSuspensions) return;
     this._draftTimer = setTimeout(() => {
       const text = this.host.getText();
-      if (text === this._cleanText) {
+      if (!this.host.isDirty()) {
         void clearDraft();
         return;
       }
@@ -207,6 +220,7 @@ export class FileSession {
       void saveDraft({
         time: Date.now(), filePath: this.host.filePath, docFormat: this.host.docFormat, text,
         ...(snap ? { project: packProject(snap, __APP_VERSION__, true) } : {}),
+        ...(this.host.draftContext ? {nota:this.host.draftContext()} : {}),
       });
     }, 3000);
   }
@@ -218,18 +232,26 @@ export class FileSession {
 
   /** 启动时：有上次没存的草稿（且与现在打开的不同）就问要不要恢复。恢复了返回 true。 */
   async offerDraftRestore(d: Draft | null): Promise<boolean> {
-    if (!d || d.text === this.host.getText()) return false;
+    this.lastRestoreFailed=false;
+    if (!d || (!d.nota && d.text === this.host.getText())) return false;
     const when = new Date(d.time).toLocaleString();
-    const what = d.project ? t("draft.session") : d.filePath ? d.filePath.replace(/^.*[\\/]/, "") : t("draft.untitled");
+    const what = d.nota?.title ?? (d.project ? t("draft.session") : d.filePath ? d.filePath.replace(/^.*[\\/]/, "") : t("draft.untitled"));
     const ok = await showConfirmDialog(t("draft.title"), t("draft.body", { what, when }));
     if (!ok) {
       void clearDraft();
       return false;
     }
-    // 恢复回来的还没存：草稿留着（不 markClean），打不开识别项目就只恢复文本
-    if (!d.project || !(await this.host.openProject(d.project, d.filePath ?? "", { draft: true }))) {
-      this.host.adoptText(d.docFormat as DocFormatId, d.text, d.filePath);
-    }
+    // Keep the recovery record if an original project is missing/corrupt; never silently drop its images.
+    this.restoringDraft=true;
+    try {
+      if(d.project) {
+        if(!(await this.host.openProject(d.project,d.filePath ?? '',{draft:true}))) throw new Error('原图项目无法恢复');
+      } else this.host.adoptText(d.docFormat as DocFormatId,d.text,d.filePath);
+    } catch {
+      this.lastRestoreFailed=true;
+      this.host.setStatus('自动恢复稿暂时无法打开，原恢复记录仍保留。请返回曲谱库或重新选择原文件。');
+      return false;
+    } finally {this.restoringDraft=false;}
     this._cleanText = null;
     this._scheduleDraft();
     this.host.setStatus(t("draft.restored"));

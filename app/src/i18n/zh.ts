@@ -39,7 +39,7 @@ export const zh = {
   "header.home": "首页",
   "header.brandAria": "Nota",
   "header.subtitle": "家庭曲谱工作台",
-  "header.save": "保存到曲谱库",
+  "header.save": "保存入库",
   "header.saveAs": "另存为",
   "header.export": "导出",
   "header.more": "更多",
