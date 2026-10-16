@@ -1,7 +1,8 @@
 // Real App + CodeMirror + renderer acceptance. Uses only an isolated loopback Vite
 // server and temporary library; never points at a running deployment.
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
+import { execFileSync } from "node:child_process";
+import { createServer } from "vite";
 import { mkdtemp, mkdir, readFile, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -15,45 +16,32 @@ await mkdir(evidence, { recursive: true });
 const library = await mkdtemp(`${tmpdir()}/nota-editor-`);
 const port = Number(process.env.NOTA_EDITOR_TEST_PORT || 5191);
 const base = `http://127.0.0.1:${port}`;
-const server = spawn(
-  process.execPath,
-  [
-    `${appRoot}/node_modules/vite/bin/vite.js`,
-    "--host",
-    "127.0.0.1",
-    "--port",
-    String(port),
-    "--strictPort",
-  ],
-  {
-    cwd: appRoot,
-    env: { ...process.env, NOTA_LIBRARY_DIRECTORY: library },
-    stdio: ["ignore", "pipe", "pipe"],
-  },
-);
-let serverOutput = "";
-server.stdout.on("data", (b) => {
-  serverOutput += b;
+const filter = process.env.NOTA_EDITOR_CASE || null;
+const casePattern = filter ? new RegExp(filter) : null;
+process.env.NOTA_LIBRARY_DIRECTORY = library;
+const server = await createServer({
+  root: appRoot,
+  configFile: `${appRoot}/vite.config.ts`,
+  cacheDir: `${library}/vite-cache`,
+  server: { host: "127.0.0.1", port, strictPort: true, hmr: false },
 });
-server.stderr.on("data", (b) => {
-  serverOutput += b;
-});
+await server.listen();
 const report = {
   kind: "isolated Chromium real-App acceptance",
   startedAt: new Date().toISOString(),
+  baseline: execFileSync("git", ["rev-parse", "HEAD"], { cwd: appRoot, encoding: "utf8" }).trim(),
+  workingTreeDirty: Boolean(execFileSync("git", ["status", "--porcelain"], { cwd: appRoot, encoding: "utf8" }).trim()),
+  filter,
+  registeredCases: 0,
+  executedCases: 0,
+  scope: "incomplete",
   cases: [],
   errors: [],
 };
 let browser;
 try {
-  for (let n = 0; n < 100; n++) {
-    if (server.exitCode !== null) throw new Error(serverOutput);
-    try {
-      if (serverOutput.includes("ready in") && (await fetch(base)).ok) break;
-    } catch {}
-    await new Promise((r) => setTimeout(r, 100));
-  }
   browser = await chromium.launch({ headless: true });
+  report.browser = { name: "chromium", version: browser.version(), profile: "desktop" };
   const context = await browser.newContext({
     viewport: { width: 1440, height: 1000 },
     acceptDownloads: true,
@@ -71,13 +59,16 @@ try {
     throw Error("Observable output did not settle");
   };
   const record = async (name, run) => {
-    if (
-      process.env.NOTA_EDITOR_CASE &&
-      !new RegExp(process.env.NOTA_EDITOR_CASE).test(name)
-    )
-      return;
-    await run();
-    report.cases.push({ name, status: "passed" });
+    report.registeredCases++;
+    if (casePattern && !casePattern.test(name)) return;
+    report.executedCases++;
+    try {
+      await run();
+      report.cases.push({ name, status: "passed" });
+    } catch (error) {
+      report.cases.push({ name, status: "failed", error: error.message });
+      throw error;
+    }
     console.log(`PASS ${name}`);
   };
   const source =
@@ -834,13 +825,15 @@ try {
         await p.close();
       },
     );
-  else
-    report.cases.push({
-      name: "real corrected original-image project",
+  else {
+    report.registeredCases++;
+    if (!casePattern || casePattern.test("real corrected project comparison, original-page tools and project reopen")) report.cases.push({
+      name: "real corrected project comparison, original-page tools and project reopen",
       status: "not-run",
       reason:
         "Set NOTA_EDITOR_PROJECT to a private corrected .dolce fixture; source files never enter Git.",
     });
+  }
   await record(
     "phrase layout, format marks, beat checking, zoom and code visibility",
     async () => {
@@ -885,7 +878,12 @@ try {
       await page.setViewportSize({ width: 1440, height: 1000 });
     },
   );
+  if (!report.executedCases) {
+    report.scope = "no-match";
+    throw new Error(`NOTA_EDITOR_CASE matched no cases: ${filter}`);
+  }
   assert.deepEqual(report.errors, []);
+  report.scope = filter || report.cases.some((item) => item.status === "not-run") ? "partial" : "full";
   await context.close();
 } catch (error) {
   report.failure = { message: error.message, stack: error.stack };
@@ -907,6 +905,6 @@ try {
   report.finishedAt = new Date().toISOString();
   await writeFile(`${evidence}/report.json`, JSON.stringify(report, null, 2));
   await browser?.close();
-  server.kill("SIGTERM");
+  await server.close();
   await rm(library, { recursive: true, force: true });
 }

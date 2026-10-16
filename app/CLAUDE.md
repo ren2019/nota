@@ -17,14 +17,12 @@
 ## 命令
 
 构建、类型检查、桌面调试命令见 [docs/架构.md](docs/架构.md)「技术栈与构建」。
-回归脚本、语料与基线不在本仓库（本地私有仓库，从本仓库根跑 `node ../dev/scripts/xxx.mjs`）；
-`scripts/` 只留发布链路：`release.sh`、`pack-omr.mjs`、`win-crt.mjs`、`vcredist.mjs`，外加随 OMR 包分发的 `omr-cli.mjs`。
-文档里写的 `../dev/scripts/xxx.mjs` 都在私有仓库。
+Nota 回归脚本保存在 `scripts/`，可提交；执行入口以[根 package.json](../package.json) 的测试命令为准。真实语料、基线、截图和报告等派生证据保存在 Git 忽略的 `local/`，遵循[根 AGENTS.md](../AGENTS.md)。
+上游文档引用的 `../dev/scripts/xxx.mjs` 属于 Dolce 的本地私有仓库。
 
 ## 约定
 
-- 测试语料与 GT（`testdata/`）只留本地，不入库；`testdata/` 只放语料与 GT，回归基线、快照、报告等派生数据放本地私有仓库。
-  各模块页的「回归」一节同此。
+- Nota 真实测试语料与 GT、回归基线、快照和报告统一保存在 Git 忽略的 `local/`；各上游模块页的「回归」路径按上述来源区别处理。
 - 提交信息用简要中文，不要 `Co-Authored-By` 尾注。
 - TS 严格模式 + `noUnusedLocals/Parameters`。
 - **界面文字走 `t()` / `data-i18n`**（`src/i18n/`），不在界面代码里写中文字面量；新键 zh.ts、en.ts 两边同加，见 [编辑器](docs/模块/编辑器.md)「界面语言」。
