@@ -1,0 +1,37 @@
+#nota-score-search {display:none;}
+#app[data-nota-screen="search"] {min-height:0;height:100dvh;background:#f6f8f2;color:#234333;}
+#app[data-nota-screen="search"] > * {display:none!important;}
+#app[data-nota-screen="search"] > #nota-score-search {display:flex!important;flex:1;min-height:0;flex-direction:column;}
+.nota-search-head {display:flex;align-items:center;gap:12px;padding:max(8px,env(safe-area-inset-top)) max(16px,env(safe-area-inset-right)) 10px max(12px,env(safe-area-inset-left));border-bottom:1px solid #d6dfd0;flex-shrink:0;}
+.nota-search-head h1 {margin:0;font-size:20px;}
+.nota-search-head p {margin:4px 0 0;font-size:12px;color:#647760;}
+.nota-search-back {min-width:44px;min-height:44px;border:0;background:transparent;color:inherit;font-size:30px;cursor:pointer;}
+.nota-search-scroll {flex:1;min-height:0;overflow:auto;padding:16px max(16px,env(safe-area-inset-right)) 24px max(16px,env(safe-area-inset-left));width:100%;box-sizing:border-box;}
+.nota-search-scroll > * {max-width:900px;margin-left:auto;margin-right:auto;}
+.nota-search-scroll p {font-size:13px;line-height:1.6;}
+.nota-source-form {display:flex;gap:8px;margin-block:16px;}
+.nota-source-form input {flex:1;min-width:0;min-height:44px;font:inherit;border:1px solid #b9cab6;border-radius:9px;padding:8px 12px;background:white;color:inherit;box-sizing:border-box;}
+.nota-score-search button:disabled,.nota-source-form button:disabled {opacity:.5;}
+.nota-source-form button,.nota-search-selection button,.nota-source-adopt {min-height:44px;padding:10px 16px;border:0;border-radius:9px;background:#285e42;color:white;cursor:pointer;font:inherit;}
+.nota-search-status {color:#617760;min-height:22px;}
+.nota-search-status.is-error {color:#a43c35;}
+.nota-search-results-title {font-size:15px;margin-block:18px 12px;}
+.nota-source-result {display:flex;flex-direction:column;gap:6px;width:100%;text-align:left;padding:14px 12px;background:white;color:inherit;border:1px solid #d4dfce;border-radius:8px;margin-top:8px;cursor:pointer;}
+.nota-source-result strong {font-size:16px;line-height:1.4;overflow-wrap:anywhere;}
+.nota-source-result span {font-size:13px;}
+.nota-source-result small {font-size:12px;line-height:1.5;color:#647760;}
+.nota-source-result.selected {border:2px solid #285e42;background:#eaf1e5;}
+.nota-search-selection {border:1px solid #b9cdb2;background:#eef4e9;border-radius:8px;margin-top:8px;padding:14px;}
+.nota-search-selection[hidden] {display:none;}
+.nota-search-selection p {margin:8px 0;}
+.nota-search-selection a {font-size:13px;color:#245c40;overflow-wrap:anywhere;}
+.nota-search-selection button {display:block;margin-top:12px;}
+.nota-external-source {border-top:1px solid #d4dfce;padding-top:12px;margin-top:24px;font-size:13px;}
+.nota-external-source summary {min-height:40px;line-height:40px;cursor:pointer;}
+.nota-external-source input {max-width:100%;min-height:44px;}
+.nota-search-scope {font-size:12px!important;color:#647760;margin-top:24px;}
+.nota-search-actions {flex-shrink:0;padding:8px max(16px,env(safe-area-inset-right)) max(12px,env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));border-top:1px solid #d4dfce;background:#fdfef9;}
+.nota-search-actions > * {display:block;max-width:900px;margin:0 auto;}
+.nota-search-open-reason {font-size:12px;margin-bottom:8px;line-height:1.5;}
+.nota-search-actions button {width:100%;}
+.nota-search-actions button:disabled {opacity:.5;cursor:default;}

@@ -32,9 +32,13 @@ const HOSTS = new Set([
 const MAX = 5 * 1024 * 1024,
   hash = (b) => createHash("sha256").update(b).digest("hex");
 const OPENSCORE_COMMIT = "38c5db510224d9facdc4b08d741fc788cfb58ea8";
+/** Index transport is injectable at the network boundary for deterministic checks. */
+export function createSourceSearch(fetchIndex = fetch) {
 let openScoreTree;
-export async function searchSources(query = "") {
-  const normalized = query.normalize("NFKC").toLowerCase().trim();
+return async function searchSources(query = "") {
+  const original = query.normalize("NFKC").toLowerCase().trim();
+  const aliases = {摇篮曲:"wiegenlied",勃拉姆斯:"brahms",舒伯特:"schubert",舒曼:"schumann",贝多芬:"beethoven",肖邦:"chopin"};
+  const normalized = original.replace(/摇篮曲|勃拉姆斯|舒伯特|舒曼|贝多芬|肖邦/g, word => aliases[word]);
   const curated = catalog.filter((s) =>
     (s.title + " " + s.aliases)
       .normalize("NFKC")
@@ -44,7 +48,7 @@ export async function searchSources(query = "") {
   if (normalized.length < 2) return curated;
   if (!openScoreTree)
     openScoreTree = (async () => {
-      const r = await fetch(
+      const r = await fetchIndex(
         `https://api.github.com/repos/OpenScore/Lieder/git/trees/${OPENSCORE_COMMIT}?recursive=1`,
         {
           headers: {
@@ -69,13 +73,7 @@ export async function searchSources(query = "") {
       openScoreTree = null;
       throw e;
     });
-  const aliases = {
-    摇篮曲: "wiegenlied",
-    勃拉姆斯: "brahms",
-    舒伯特: "schubert",
-    舒曼: "schumann",
-  };
-  const words = (aliases[normalized] ?? normalized)
+  const words = normalized
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .split(/\s+/);
@@ -93,13 +91,11 @@ export async function searchSources(query = "") {
     .map((p) => {
       const bits = p.split("/");
       return {
-        title: (
-          bits[bits.length - 2].replaceAll("_", " ") +
-          " · " +
-          bits[1].replaceAll("_", " ")
-        ).slice(0, 120),
+        title: bits[bits.length - 2].replaceAll("_", " ").slice(0,120),
+        composer: bits[1].replaceAll("_", " "),
+        sourceName: "OpenScore Lieder",
         aliases: p,
-        edition: "OpenScore · 第 1 声部（导入时检查单旋律）",
+        edition: bits.slice(2,-2).join(" / ").replaceAll("_", " ") || "OpenScore Lieder",
         url: `https://raw.githubusercontent.com/OpenScore/Lieder/${OPENSCORE_COMMIT}/${p.split("/").map(encodeURIComponent).join("/")}`,
         license: "OpenScore Lieder · CC0-1.0",
         format: "musicxml",
@@ -117,7 +113,9 @@ export async function searchSources(query = "") {
         ),
     ),
   ];
+};
 }
+export const searchSources = createSourceSearch();
 
 export function permittedSource(url) {
   const u = new URL(url);

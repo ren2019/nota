@@ -4,7 +4,7 @@ import { showConfirmDialog, showFormDialog, showUnsavedLibraryDialog } from "../
 import { keyLabel } from "./convert";
 import "./library.css";
 import { CurrentDocumentSession, libraryRequest as request, LibraryError, writeLibraryScore, bytesBase64, type LibraryItem, type LibrarySaveResult } from "./document-session";
-import { mountSourceImport, type SourceCandidate } from "./source-import";
+import { type SourceCandidate } from "./source-import";
 
 /** One shared library on the Nota host; opening a score never re-runs recognition. */
 export function mountLibrary(app: App, revealWorkspace: (mode?: "practice" | "edit") => void, session: CurrentDocumentSession, onSaved: () => void) {
@@ -183,7 +183,7 @@ export function mountLibrary(app: App, revealWorkspace: (mode?: "practice" | "ed
   }
 
   async function adoptCandidate(candidate: SourceCandidate) {
-    if (!(await app.confirmReplace())) return;
+    if (!(await app.confirmReplace())) return false;
     session.detach(candidate.source, candidate.title);
     app.playback.stop(); app.omr.clear();
     app.adoptText(candidate.format, candidate.text, null); app.formats.use(null);
@@ -192,10 +192,10 @@ export function mountLibrary(app: App, revealWorkspace: (mode?: "practice" | "ed
     app.exportSourceDescription = provenanceFooterSource(session.source);
     app.setStatus(`已打开「${candidate.title}」候选。来源数据对照通过；请核对版本与谱面，确认后保存到曲谱库。`);
     revealWorkspace("edit");
+    return true;
   }
-  mountSourceImport(adoptCandidate);
   search.addEventListener("input", render);
   root.querySelector("#library-refresh")!.addEventListener("click", () => void refresh());
   void refresh();
-  return { save, refresh, confirmReplace, detach: () => session.detach() };
+  return { save, refresh, confirmReplace, adoptCandidate, detach: () => session.detach() };
 }

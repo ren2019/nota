@@ -1,4 +1,6 @@
-import { openModal } from "../editor/dialogs";
+import type { DocumentDetail } from "./detail";
+import { ScoreSearchSession } from "./score-search";
+import "./score-search.css";
 export interface SourceProvenance {
   url: string;
   license: string;
@@ -22,225 +24,86 @@ export interface SourceCandidate {
   scope: string;
   source: SourceProvenance;
 }
-interface SourceItem {
+export interface SourceItem {
   id?: string;
   format?: "abc" | "musicxml";
   part?: number;
   title: string;
   aliases: string;
   edition: string;
+  composer?: string;
+  sourceName?: string;
   license: string;
   url: string;
 }
-async function api<T>(path: string, data?: unknown): Promise<T> {
-  const r = await fetch(
-    `/api/score-sources${path}`,
-    data
-      ? {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(data),
-        }
-      : undefined,
-  );
-  const body = await r.json();
-  if (!r.ok) throw new Error(body.error ?? "暂时无法导入曲谱。");
-  return body;
-}
-/** Small catalogue + agent-produced candidate files. No model/API key in the app. */
-export function mountSourceImport(
-  adopt: (candidate: SourceCandidate) => Promise<void>,
-) {
-  const launch = document.createElement("button");
-  launch.type = "button";
-  launch.className = "library-refresh";
-  launch.textContent = "联网找谱";
-  launch.id = "nota-find-score";
-  document.querySelector(".library-heading")!.append(launch);
-  launch.onclick = () => {
-    let live = true,
-      busy = false,
-      candidate: SourceCandidate | null = null;
-    const body = document.createElement("div");
-    body.className = "source-import";
-    const intro = document.createElement("p");
-    intro.textContent =
-      "从结构化原谱导入，保留音高与八度。先查看来源和验证结果，再打开校对；不会直接写入曲谱库。";
-    const query = document.createElement("input");
-    query.type = "search";
-    query.placeholder = "搜索曲名，如国际歌、摇篮曲";
-    query.setAttribute("aria-label", "搜索在线曲谱");
-    const search = document.createElement("button");
-    search.type = "button";
-    search.textContent = "搜索在线谱库";
-    const list = document.createElement("div");
-    list.className = "source-list";
-    const status = document.createElement("p");
-    status.setAttribute("role", "status");
-    status.setAttribute("aria-live", "polite");
-    const detail = document.createElement("div");
-    detail.className = "source-detail";
-    detail.hidden = true;
-    const files = document.createElement("input");
-    files.type = "file";
-    files.accept = ".json,.nota-score.json";
-    files.id = "nota-source-file";
-    const label = document.createElement("label");
-    label.textContent = "导入 agent 准备的候选文件";
-    label.htmlFor = files.id;
-    const explanation = document.createElement("small");
-    explanation.textContent =
-      "提供首批国歌曲谱及 OpenScore 歌曲库检索。未找到的曲子可请 agent 从其他支持来源查找，生成候选文件后在此导入。";
-    body.append(
-      intro,
-      query,
-      search,
-      list,
-      status,
-      detail,
-      label,
-      files,
-      explanation,
-    );
-    const cancel = document.createElement("button");
-    cancel.textContent = "关闭";
-    const open = document.createElement("button");
-    open.textContent = "打开候选并校对";
-    open.className = "modal-button-primary";
-    open.disabled = true;
-    const modal = openModal({
-      title: "联网找谱",
-      boxClass: "source-import-box",
-      body: [body],
-      footer: [cancel, open],
-      onClose: () => {
-        live = false;
-      },
-    });
-    cancel.onclick = modal.close;
-    open.onclick = async () => {
-      if (!candidate || busy) return;
-      busy = true;
-      open.disabled = true;
-      try {
-        await adopt(candidate);
-        modal.close();
-      } catch (e) {
-        status.textContent = e instanceof Error ? e.message : String(e);
-        busy = false;
-        open.disabled = false;
-      }
-    };
-    async function prepare(path: string, data: unknown) {
-      if (busy) return;
-      busy = true;
-      candidate = null;
-      detail.hidden = true;
-      open.disabled = true;
-      status.textContent =
-        "正在下载原谱并独立核对音高、八度、时值、起音和结构…";
-      try {
-        const result = await api<SourceCandidate>(path, data);
-        if (!live) return;
-        candidate = result;
-        const title = document.createElement("strong");
-        title.textContent = result.title;
-        const summary = document.createElement("p");
-        summary.textContent = `源数据对照通过 · ${result.measures} 小节 · ${result.notes} 个音符（含倚音）`;
-        const scope = document.createElement("p");
-        scope.textContent = result.scope;
-        const method = document.createElement("p");
-        method.textContent = `验证：${result.source.method}。与选定数字谱本一致，原谱版本仍请核对。`;
-        const link = document.createElement("a");
-        link.href = result.source.url;
-        link.target = "_blank";
-        link.rel = "noopener noreferrer";
-        link.textContent = "查看原始来源";
-        const license = document.createElement("p");
-        license.textContent = result.source.license;
-        detail.replaceChildren(title, summary, scope, method, link, license);
-        detail.hidden = false;
-        open.disabled = false;
-        status.textContent = "候选已准备；打开后仍可编辑，确认后再保存入库。";
-      } catch (e) {
-        if (live)
-          status.textContent = e instanceof Error ? e.message : String(e);
-      } finally {
-        busy = false;
+
+/** A full browsing page; no document replacement occurs until explicit adoption. */
+export function mountSourceImport(adopt:(candidate:SourceCandidate)=>Promise<boolean>, navigation:DocumentDetail) {
+  const session=new ScoreSearchSession();
+  let launch=document.getElementById("nota-find-score") as HTMLButtonElement | null;
+  if(!launch) { launch=document.createElement("button");launch.type="button";launch.className="library-refresh";launch.textContent="联网查谱";launch.id="nota-find-score";document.querySelector(".library-heading")!.append(launch); }
+  launch.onclick=()=>navigation.showSearch();
+  const page=document.createElement("section");page.id="nota-score-search";
+  page.innerHTML=`<header class="nota-search-head"><button type="button" class="nota-search-back" aria-label="返回曲谱库">‹</button><div><h1>联网查谱</h1><p>搜索已接入的 OpenScore 歌曲库及精选来源</p></div></header><div class="nota-search-scroll"><p class="nota-search-intro">先查找版本，再下载并校验旋律。仅浏览不会替换当前曲谱；明确打开后才能编辑，保存才入库。</p><form class="nota-source-form"><label class="sr-only" for="nota-source-query">曲名或作者</label><input id="nota-source-query" type="search" placeholder="输入曲名或作者" autocomplete="off"><button type="submit">搜索</button></form><p class="nota-search-status" role="status" aria-live="polite"></p><h2 class="nota-search-results-title"></h2><div class="nota-search-results"></div><section class="nota-search-selection"></section><details class="nota-external-source"><summary>导入曲谱候选文件</summary><p>接收 .nota-score.json / .json 文件，须包含原始谱本、来源与许可。仍会联网重新核对原谱，校验通过才能打开。</p><input id="nota-source-file" type="file" accept=".json,.nota-score.json" aria-label="选择曲谱候选文件"></details><p class="nota-search-scope">馆藏范围：固定版本的 OpenScore Lieder 结构化歌曲谱及精选来源。并非全网搜索；最多返回 20 条 OpenScore 结果，另含匹配的精选来源。搜索命中尚未验证可导入。</p></div><footer class="nota-search-actions"><p class="nota-search-open-reason"></p><button type="button" class="nota-source-adopt">打开并校对</button></footer>`;
+  document.getElementById("app")!.append(page);
+  const query=page.querySelector<HTMLInputElement>("#nota-source-query")!;
+  const form=page.querySelector<HTMLFormElement>("form")!;
+  const search=page.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+  const list=page.querySelector<HTMLElement>(".nota-search-results")!;
+  const selection=page.querySelector<HTMLElement>(".nota-search-selection")!;
+  const title=page.querySelector<HTMLElement>(".nota-search-results-title")!;
+  const status=page.querySelector<HTMLElement>(".nota-search-status")!;
+  const open=page.querySelector<HTMLButtonElement>(".nota-source-adopt")!;
+  const reason=page.querySelector<HTMLElement>(".nota-search-open-reason")!;
+  const file=page.querySelector<HTMLInputElement>("#nota-source-file")!;
+  page.querySelector<HTMLButtonElement>(".nota-search-back")!.onclick=()=>navigation.home();
+  form.onsubmit=event=>{event.preventDefault();void session.submit();};
+  query.oninput=()=>session.setDraft(query.value);
+  open.onclick=()=>void session.adopt(adopt);
+  file.onchange=()=>{const chosen=file.files?.[0];file.value="";if(chosen) void session.validateFile(chosen);};
+  function paragraph(text:string) {const p=document.createElement("p");p.textContent=text;return p;}
+  function render() {
+    const busy=session.phase === "adopting";
+    query.disabled=search.disabled=file.disabled=busy;
+    search.textContent=session.phase === "searching" ? "搜索中…" : "搜索";
+    status.classList.toggle("is-error",!!session.error);
+    status.textContent=session.error || (session.pendingQuery ? "输入尚未提交，请点击搜索。下方仍是上次查询。" : {
+      idle:"输入曲名或作者后搜索。",searching:"正在检索结构化曲谱索引…",results:"选择一个相关版本，查看来源后准备。",empty:"没有找到匹配的候选。可换用曲名或作者，或使用候选文件。",preparing:"正在下载原谱，独立核对音高、八度、时值、起音与结构…",ready:"源数据对照通过；请核对版本后打开。",adopting:"正在处理当前稿，请完成保存或替换选择。",error:"检索或校验失败，请重试。",
+    }[session.phase]);
+    title.hidden=!session.query;
+    title.textContent=session.phase === "searching" || (session.phase === "error" && !session.items.length) ? `查询“${session.query}”` : `“${session.query}” · 返回 ${session.items.length} 个候选`;
+    list.replaceChildren();selection.replaceChildren();
+    for(const item of session.items) {
+      const row=document.createElement("button");row.type="button";row.className="nota-source-result";
+      const selected=session.selected?.url === item.url;
+      row.classList.toggle("selected",selected);row.setAttribute("aria-pressed",String(selected));row.disabled=busy || session.pendingQuery;
+      const name=document.createElement("strong");name.textContent=item.title;
+      const author=document.createElement("span");author.textContent=item.composer || "作者与版本见来源";
+      const edition=document.createElement("small");edition.textContent=[item.edition,item.sourceName || new URL(item.url).hostname].filter(Boolean).join(" · ");
+      row.append(name,author,edition);row.onclick=()=>session.select(item);list.append(row);
+      if(selected) list.append(selection);
+    }
+    if(!selection.isConnected || selection.parentElement !== list) list.after(selection);
+    const chosen=session.selected, candidate=session.candidate;
+    selection.hidden=!chosen && !candidate && session.phase !== "preparing";
+    if(chosen) {
+      selection.append(paragraph(chosen.title),paragraph(chosen.license));
+      const source=document.createElement("a");source.href=chosen.url;source.target="_blank";source.rel="noopener noreferrer";source.textContent="查看来源文件";selection.append(source);
+      if(!candidate) {
+        selection.append(paragraph("尚未读取原谱。准备后将检查所选旋律声部，不能预先保证适用。"));
+        const prepare=document.createElement("button");prepare.type="button";prepare.textContent=session.phase === "preparing" ? "正在下载并校验…" : "下载并校验此版本";prepare.disabled=session.phase === "preparing" || busy || session.pendingQuery;prepare.onclick=()=>void session.prepare();selection.append(prepare);
       }
     }
-    files.onchange = async () => {
-      const file = files.files?.[0];
-      if (!file) return;
-      try {
-        if (file.size > 32 * 1024 * 1024) throw new Error("候选文件过大。");
-        await prepare("/validate", JSON.parse(await file.text()));
-      } catch (e) {
-        status.textContent = e instanceof Error ? e.message : String(e);
-      }
-    };
-    let items: SourceItem[] = [];
-    function render() {
-      list.replaceChildren();
-      const q = query.value.normalize("NFKC").toLocaleLowerCase().trim();
-      const shown = items.filter((i) =>
-        (i.title + " " + i.aliases)
-          .normalize("NFKC")
-          .toLocaleLowerCase()
-          .includes(q),
-      );
-      for (const item of shown) {
-        const b = document.createElement("button");
-        b.type = "button";
-        b.className = "library-item";
-        b.textContent = item.title + " · " + item.edition;
-        b.onclick = () =>
-          void prepare("/prepare", item.id ? { id: item.id } : item);
-        list.append(b);
-      }
-      if (!shown.length) {
-        const empty = document.createElement("p");
-        empty.textContent =
-          "没有匹配项，可换用原文曲名、作者，或导入另行找到的候选文件。";
-        list.append(empty);
-      }
+    if(candidate) {
+      const name=document.createElement("strong");name.textContent=candidate.title;
+      const link=document.createElement("a");link.href=candidate.source.url;link.target="_blank";link.rel="noopener noreferrer";link.textContent="已核对的原始来源";
+      selection.append(name,paragraph(`源数据对照通过 · ${candidate.measures} 小节 · ${candidate.notes} 个音符（含倚音）`),paragraph(`已选声部：${candidate.source.part}`),paragraph(candidate.scope),paragraph(`校验方式：${candidate.source.method}。与此数字谱本一致，仍请核对曲谱版本。`),paragraph(candidate.source.license),link);
     }
-    query.oninput = render;
-    async function searchOnline() {
-      const q = query.value.trim();
-      search.disabled = true;
-      status.textContent = "正在检索 OpenScore 结构化曲谱索引…";
-      try {
-        const result = await api<SourceItem[]>(`?q=${encodeURIComponent(q)}`);
-        if (live && query.value.trim() === q) {
-          items = result.map((item) => ({
-            ...item,
-            aliases: item.aliases + " " + q,
-          }));
-          render();
-          status.textContent = `找到 ${result.length} 个候选来源；请先确认曲名、版本和声部。`;
-        }
-      } catch (e) {
-        if (live)
-          status.textContent = e instanceof Error ? e.message : String(e);
-      } finally {
-        search.disabled = false;
-      }
-    }
-    search.onclick = () => void searchOnline();
-    query.onkeydown = (e) => {
-      if (e.key === "Enter") void searchOnline();
-    };
-    void api<SourceItem[]>("")
-      .then((data) => {
-        if (live) {
-          items = data;
-          render();
-        }
-      })
-      .catch((e) => {
-        status.textContent = e.message;
-      });
-    query.focus();
-  };
+    open.disabled=session.phase !== "ready" || !candidate;
+    reason.textContent=candidate ? "打开会先保护当前稿；不会自动入库。" : "请先选择版本并完成下载校验。";
+  }
+  session.subscribe(render);
+  navigation.subscribeNavigation(screen=>{if(screen === "search") {render();requestAnimationFrame(()=>query.focus());}});
+  render();
+  return {session,open:()=>navigation.showSearch()};
 }
