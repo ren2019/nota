@@ -450,3 +450,17 @@ body.ia-prototype { margin:0; height:auto; min-height:100vh; display:block; over
 @container (max-width:760px) {
   .ia-prototype .bd-correction .scan div+div { display:none; }
 }
+/* Dolce palette: upstream renderer / action groups / symbols, with touch-sized cells. */
+.ia-prototype .bd-dolce { padding:14px 16px; }
+.ia-prototype .bd-dolce-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; font-size:13px; }
+.ia-prototype .bd-dolce-head>span { padding:3px 8px; border-radius:5px; color:#557747; background:#eaf1e3; font-size:12px; }
+.ia-prototype .bd-dolce-views { display:flex; gap:8px; margin-bottom:12px; }
+.ia-prototype .bd-dolce-views button { font-size:12px; flex:1; }
+.ia-prototype .bd-dolce .original { margin:0 0 14px; }
+.ia-prototype .bd-dolce .visual-palette { display:flex; flex-wrap:wrap; gap:10px; padding:0; border:0; background:transparent; }
+.ia-prototype .bd-dolce .visual-palette-group { display:flex; flex-wrap:wrap; gap:4px; align-items:center; width:100%; padding:0 0 10px; border:0; border-bottom:1px solid #e1e7da; }
+.ia-prototype .bd-dolce .visual-palette button { min-width:44px; min-height:44px; padding:6px; border-radius:6px; border:1px solid #d8e0d0; background:#fffefa; font-size:15px; line-height:1.2; }
+.ia-prototype .bd-dolce .visual-palette button:hover { background:#e7efdf; }
+.ia-prototype .bd-dolce .visual-palette button:disabled { opacity:.35; cursor:default; }
+.ia-prototype .bd-dolce .visual-palette .visual-palette-digit { font-weight:700; }
+.ia-prototype .bd-dolce-note { margin:14px 0 0; color:#8a977e; font-size:11px; }
