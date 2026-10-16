@@ -60,6 +60,6 @@
 
 《莫斯科郊外的晚上》保持音高重记的重复升降号已改为逐音显式显示，保留必要还原号与原有音高。复现、原因及验证边界见 [NOTA-003](issues/003-renotation-accidentals.md)。
 
-## 下一项已整理规格
+## 全局简谱输出设置（已在集成分支完成）
 
-全局简谱输出设置及两种升降号模式已发布至 [GitHub issue #1](https://github.com/ren2019/nota/issues/1)，标记 `ready-for-agent`，待实施。后续状态以 GitHub Issues 为准；本轮仅完成仓库和技能配置，不执行该功能。
+全局简谱输出设置及两种升降号模式已按 [GitHub issue #1](https://github.com/ren2019/nota/issues/1) 完成，代码位于 `integration/global-jianpu-output`。两轴审查发现已修复；测试、构建及 Safari 实际导出通过，详见 [验收记录](global-jianpu-output-acceptance.md)。本次未合入 main 或更新正式部署，后续状态以 GitHub Issues 为准。
