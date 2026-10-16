@@ -18,6 +18,7 @@ import { setupCompareSelect } from "./editor/comparemode";
 import { mountPracticePanel } from "./nota/panel";
 import { PRACTICE_SAMPLE } from "./nota/sample";
 import { mountLibrary } from "./nota/library";
+import { mountPracticeControls } from "./nota/practice-controls";
 import { CurrentDocumentSession } from "./nota/document-session";
 import { mountDocumentDetail, type DetailMode, type DocumentDetail } from "./nota/detail";
 
@@ -297,6 +298,7 @@ async function boot() {
   const speedSel = document.getElementById("sel-speed") as HTMLSelectElement | null;
   if (speedSel) app.playback.bindSpeedSelect(speedSel);
   app.playback.bindToggles(document.getElementById("btn-loop") as HTMLButtonElement | null, document.getElementById("btn-metronome") as HTMLButtonElement | null);
+  mountPracticeControls(app, session, detail);
   const openScore = async () => { if (await app.openFile()) { library.detach(); revealWorkspace(); } };
   document.getElementById("btn-open")?.addEventListener("click", () => void openScore());
   document.getElementById("btn-start-score")?.addEventListener("click", () => void openScore());

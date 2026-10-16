@@ -334,6 +334,13 @@ export class PlaybackController {
     this.refreshProgress();
   }
 
+  /** 练习页回到开头：显式起点覆盖专业页留下的选中音，不自动播放。 */
+  rewind(): void {
+    this.stop();
+    this.cueSec = 0;
+    this.refreshProgress();
+  }
+
   /** 点中了某个音：有播放会话就跳过去接着播（暂停中只挪位置），停止中记为下次的起点。 */
   seekTo(point: PlayPoint): void {
     const p = this.player;

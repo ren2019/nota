@@ -119,7 +119,7 @@ export function mountDocumentDetail(app: App, session: CurrentDocumentSession, r
   history.replaceState(route(),'',initialUrl);
   return {
     session, practiceControls, actionSlot, saveButton, exportButton, tuneButton, editButton,
-    get screen(){return screen;}, get mode(){return mode;},
+    get screen(){return screen;}, get mode(){return mode;}, get documentKey(){return key();},
     refresh,
     open(nextMode:DetailMode='edit') { if(!session.current) draft=newDraftKey(); navigate('detail',nextMode); },
     home(){navigate('library');},
