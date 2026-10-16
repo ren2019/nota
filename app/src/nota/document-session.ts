@@ -34,6 +34,14 @@ export function writeLibraryScore(payload: LibrarySubmission, existing: LibraryI
     body:JSON.stringify({...payload,...(existing ? {revision:existing.revision} : {})}),
   },endpoint);
 }
+/** Rename from the committed record, never from the editor's potentially dirty text/project. */
+export async function renameLibraryScore(existing:LibraryItem,title:string,endpoint?:string):Promise<LibraryItem> {
+  const committed=await libraryRequest<LibraryScore>(`/${encodeURIComponent(existing.id)}`,undefined,endpoint);
+  return writeLibraryScore({...committed,title},existing,endpoint);
+}
+export function deleteLibraryScore(existing:LibraryItem,endpoint?:string):Promise<{id:string;revision:number;deleted:true}> {
+  return libraryRequest(`/${encodeURIComponent(existing.id)}`,{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({revision:existing.revision})},endpoint);
+}
 export interface LibraryDraftContext {
   version:1; current:LibraryItem | null; title:string; source?:SourceProvenance;
   presentation:LibraryPresentation; baseline:string | null;
@@ -117,6 +125,22 @@ export class CurrentDocumentSession {
   }
   /** Metadata-only operations such as rename must not clear the content save baseline. */
   updateIdentity(item:LibraryItem):void { this.current=item; this.notify(); this.app.files._scheduleDraft(); }
+  /** A deleted server record must not survive as an autosave identity or a still-open committed song. */
+  forgetDeleted(id:string,submitted:DocumentSnapshot):'cleared' | 'kept-draft' | 'other-document' {
+    if(this.current?.id !== id) return 'other-document';
+    if(!this.matches(submitted)) {
+      this.detach(this.source,this.title);
+      return 'kept-draft';
+    }
+    const releaseDraft=this.app.suspendDraftWrites();
+    try {
+      this.generation++;this.active=false;this.recovered=false;this.current=null;
+      this.source=undefined;this.importedTitle=undefined;this.baseline=null;
+      this.app.playback.stop();this.app.omr.clear();this.app.adoptText('123','',null);this.app.formats.use(null);
+      this.app.exportSourceDescription='';this.app.markClean();this.notify();
+      return 'cleared';
+    } finally {releaseDraft();}
+  }
   detach(source?:SourceProvenance,title?:string):void {
     this.generation++; this.active=true; this.recovered=false;
     this.current=null; this.source=source; this.importedTitle=title; this.baseline=null;

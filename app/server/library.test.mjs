@@ -49,3 +49,36 @@ test("shared library persists, lists metadata, updates and rejects stale writes"
   assert.equal(edited.status,200);
   assert.equal((await (await fetch(`${url}/${saved.id}`)).json()).source.edited,true);
 });
+
+test('delete removes only stable identity at expected revision and persists across restart', async t => {
+  const directory=await mkdtemp(path.join(tmpdir(),'nota-delete-'));
+  const start=async() => {
+    const middleware=libraryMiddleware(directory);
+    const server=createServer((req,res) => void middleware(req,res,() => {res.writeHead(404);res.end();}));
+    await new Promise(resolve => server.listen(0,'127.0.0.1',resolve));
+    return {server,url:`http://127.0.0.1:${server.address().port}/api/library`};
+  };
+  let {server,url}=await start();
+  t.after(async() => {await new Promise(resolve => server.close(resolve));await rm(directory,{recursive:true,force:true});});
+  const request=(method,uri,data,origin) => fetch(uri,{method,headers:{'Content-Type':'application/json',...(origin ? {Origin:origin} : {})},body:JSON.stringify(data)});
+  const payload={title:'同名曲',format:'123',text:'T:印刷标题\nK:1=C\n1 2 3 4 |]'};
+  const first=await (await request('POST',url,payload)).json();
+  const second=await (await request('POST',url,payload)).json();
+  assert.notEqual(first.id,second.id);
+  assert.equal((await request('DELETE',`${url}/${first.id}`,{revision:99})).status,409);
+  assert.equal((await request('DELETE',`${url}/${first.id}`,{revision:1},'http://unrelated.example')).status,403);
+  assert.equal((await request('DELETE',`${url}/${first.id}`,{})).status,400);
+  const deleted=await request('DELETE',`${url}/${first.id}`,{revision:1});
+  assert.equal(deleted.status,200);
+  assert.equal((await deleted.json()).id,first.id);
+  assert.equal((await fetch(`${url}/${first.id}`)).status,404);
+  assert.equal((await request('DELETE',`${url}/${first.id}`,{revision:1})).status,404);
+  const third=await (await request('POST',url,{...payload,title:'并发删除'})).json();
+  const raced=await Promise.all([request('DELETE',`${url}/${third.id}`,{revision:1}),request('DELETE',`${url}/${third.id}`,{revision:1})]);
+  assert.deepEqual(raced.map(response => response.status).sort(),[200,404]);
+  await new Promise(resolve => server.close(resolve));
+  ({server,url}=await start());
+  const items=await (await fetch(url)).json();
+  assert.deepEqual(items.map(item => item.id),[second.id]);
+  assert.equal((await (await fetch(`${url}/${second.id}`)).json()).text,payload.text);
+});
