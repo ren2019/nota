@@ -12,6 +12,7 @@ import { JpwFile, LayoutSection } from "../jpword/jpwfile";
 import { measureDocument, PaintResources, ScorePainter, type SyncPaintRequest } from "../layout/painter";
 import { DEFAULT_JIANPU_ACCIDENTALS, jianpuAccidentalMode, type JianpuAccidentalMode } from "../nota/jianpu-output";
 import { emitJianpu123 } from "../nota/text-output";
+import { prepareDocumentInput } from "../nota/input";
 import { computeStyle, sanitizeLayer, upsertRule, type StyleRule } from "../style/cascade";
 import type { Length } from "../style/units";
 import { NOTE_FONTS } from "../style/fonts";
@@ -43,7 +44,7 @@ import { hitThroughOverlay } from "./visual/overlay";
 import type { EditDialect } from "./visual/dialect";
 import { planSave } from "../model/capability";
 import { withLyricsFrom, withMelodyFirst, withVisibleParts } from "../model/parts";
-import { unpackProject } from "./omrproject";
+import { packProject, unpackProject } from "./omrproject";
 import { dropEmbeddedLayout } from "../model/xmlsurface";
 import { CONVERT_TARGETS, isConvertTarget, targetSpec, type ConvertTarget } from "../model/convert";
 import { showChoiceDialog } from "./dialogs";
@@ -1988,6 +1989,52 @@ export class App implements OmrHost, PlaybackHost, FormatHost, FormatSwitchHost,
   }
 
   // ---------------- file I/O ----------------
+  inputBusy=false;
+  /** One real editor transaction: failures restore its actual state, OMR bytes and layout before returning false. */
+  async runInputTransaction(work:()=>Promise<boolean>):Promise<boolean> {
+    if(this.inputBusy) {this.setStatus('正在处理另一份输入，请稍候。');return false;}
+    this.inputBusy=true;
+    const releaseDraft=this.suspendDraftWrites();
+    const root=document.getElementById('app'); const wasInert=root?.inert ?? false;
+    if(root) root.inert=true;
+    const before={state:this.view.state,format:this.docFormat,path:this.filePath,project:structuredClone(this.omr.snapshot()),
+      layout:this.captureLayoutState(),view:this.viewMode,mode:this.mode,source:this.formats.source,clean:this.files._cleanText,scroll:this.scorePane.scrollTop};
+    const rollback=async() => {
+      this.playback.stop();
+      if(before.project) await this.openProject(packProject(before.project,__APP_VERSION__),before.path ?? '',{draft:true});
+      else {this.omr.clear();this.adoptText(before.format,before.state.doc.toString(),before.path);}
+      this.view.setState(before.state); this.filePath=before.path; this.formats.use(before.source);
+      this.restoreLayoutState(before.layout); await this.setViewMode(before.view);
+      if(before.mode === 'recognize' && before.project) {this.setRecognizeMode(true);this.omr.renderPages();}
+      await this.whenIdle();this.files._cleanText=before.clean;this.scorePane.scrollTop=before.scroll;
+    };
+    try {
+      const ok=await work();
+      if(ok) return true;
+      const reason=this.status;
+      await rollback(); this.setStatus(reason || '输入未完成，已保留原稿。'); return false;
+    } catch(error) {
+      try {await rollback();} catch(restoreError) {
+        console.error('恢复当前稿失败',restoreError);
+        this.setStatus('输入失败，恢复原稿时也出现问题。请保留当前页面，并从已保存的曲谱或恢复稿重新打开。');return false;
+      }
+      this.setStatus(`输入未完成，原稿已保留：${error instanceof Error ? error.message : String(error)}`);return false;
+    } finally {this.inputBusy=false;if(root) root.inert=wasInert;releaseDraft();}
+  }
+
+  async openBytes(bytes:Uint8Array,name:string,interactive=false):Promise<boolean> {
+    try {prepareDocumentInput(bytes,name);} catch(error) {this.setStatus(error instanceof Error ? error.message : String(error));return false;}
+    return this.runInputTransaction(async() => {
+      if(isProjectFile(name)) {if(!(await this.openProject(bytes,name))) return false;}
+      else this.importBytes(bytes,name);
+      this.filePath=name;
+      await this.whenIdle();
+      if(!this.scoreDoc()?.songs.length) return false;
+      if(interactive) await this.onDocumentOpened();
+      await this.whenIdle(); return true;
+    });
+  }
+
   /** 按扩展名落地：.abc / .123 / .jcx / 文本谱 / .musicxml（无代码区）各进原生格式；其余按 UTF-16 .jpwabc 读。 */
   importBytes(bytes: Uint8Array, name: string): void {
     // 识别项目：还原整个识别会话（原图、识别结果、在改的原文），不重跑识别

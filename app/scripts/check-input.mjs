@@ -1,0 +1,13 @@
+import {build} from 'esbuild';
+import assert from 'node:assert/strict';
+import {fileURLToPath,pathToFileURL} from 'node:url';
+const root=fileURLToPath(new URL('..',import.meta.url));
+await build({entryPoints:[`${root}/src/nota/input.ts`],outfile:`${root}/out/input-check.mjs`,bundle:true,platform:'node',format:'esm',define:{'import.meta.env.BASE_URL':'"/"'}});
+const {prepareDocumentInput}=await import(pathToFileURL(`${root}/out/input-check.mjs`));
+const valid=prepareDocumentInput(new TextEncoder().encode('T:真实导入\nM:4/4\nK:1=C\n1 2 3 4 |]\n'),'练习.123');
+assert.equal(valid.format,'123'); assert.match(valid.text,/真实导入/);
+assert.throws(() => prepareDocumentInput(new TextEncoder().encode('这是一份普通笔记，不是乐谱'),'误选.txt'), /文本谱|乐谱|识别/);
+assert.throws(() => prepareDocumentInput(new Uint8Array([0,1,2]),'损坏.dolce'), /项目|压缩|zip|ZIP/);
+const blank=prepareDocumentInput(new TextEncoder().encode('T:空白\nM:4/4\nK:1=C\n0 0 0 0 |]\n'),'空白.123');
+assert.equal(blank.format,'123');
+console.log('Input boundary: real format parser accepts score/blank rests and rejects unsupported text or broken project before adoption.');

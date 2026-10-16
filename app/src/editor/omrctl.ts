@@ -46,6 +46,7 @@ function baseTitle(name: string): string {
 
 /** OmrController 向编辑器要的全部能力。 */
 export interface OmrHost {
+  runInputTransaction(work:()=>Promise<boolean>):Promise<boolean>;
   suspendDraftWrites():()=>void;
   confirmReplace(closing?:boolean): Promise<boolean>;
   /** 当前预览模式。识别模式期间为 "recognize"。 */
@@ -203,6 +204,10 @@ export class OmrController implements FormatSource {
     });
   }
 
+  setInputKind(kind:'auto' | 'jianpu' | 'staff'):void {
+    this.kind=kind; this.syncKindSelects(); this.host.saveSettings();
+  }
+
   private syncKindSelects(): void {
     for (const sel of this.kindSelects) sel.value = this.kind;
   }
@@ -263,17 +268,12 @@ export class OmrController implements FormatSource {
    * 简谱一次识别一张（几张时只认第一张，状态栏说明）。
    */
   async recognizeFiles(files: readonly RecogInput[]): Promise<boolean> {
-    const releaseDraft=this.host.suspendDraftWrites();
-    try {
-    const g = ++this.gen;
-    const prev = this.lastInputs;
-    const ok = await this.recognizeFilesInner(files, g);
-    // 改过原图列表重识别没成：谱面还是上一次的结果，原图列表也退回去（存项目、重开补对照要的是那一份）。
-    // 没有会话（起始页第一次识别失败）就留着新的，好给「调整原图后重试」
-    if (!ok && g === this.gen && this.sessionKind !== null) this.lastInputs = prev;
-    if (g === this.gen || ok) this.syncPagesBtn();
-    return ok;
-    } finally {releaseDraft();}
+    return this.host.runInputTransaction(async () => {
+      const g=++this.gen;
+      const ok=await this.recognizeFilesInner(files,g);
+      if(g === this.gen || ok) this.syncPagesBtn();
+      return ok;
+    });
   }
 
   private async recognizeFilesInner(files: readonly RecogInput[], g: number): Promise<boolean> {

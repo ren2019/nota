@@ -174,6 +174,7 @@ export class CurrentDocumentSession {
     try {
     const {score, project} = await readLibraryScore(id);
     this.generation++;
+    const opened=await this.app.runInputTransaction(async () => {
     this.app.playback.stop();
     if (project) {
       if (!(await this.app.openProject(project, `${score.title}.dolce`))) throw new Error('这份曲谱的原图项目暂时无法打开。');
@@ -189,6 +190,9 @@ export class CurrentDocumentSession {
     }
     await this.app.whenIdle();
     if (!this.app.scoreDoc()?.songs.length) throw new Error('这份曲谱暂时无法排版，请返回曲谱库检查原文件。');
+      return true;
+    });
+    if(!opened) throw new Error(this.app.status || '这份曲谱无法打开，原稿已保留。');
     this.active=true; this.recovered=false;
     this.source = score.source; this.importedTitle = undefined;
     this.app.exportSourceDescription = provenanceFooterSource(score.source);

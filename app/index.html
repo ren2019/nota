@@ -37,8 +37,13 @@
           <div class="brand" aria-label="Nota" data-i18n-aria="header.brandAria">
             <img class="brand-mark" src="%BASE_URL%favicon.svg" alt="" width="30" height="30" aria-hidden="true" />
             <span class="brand-name">Nota</span>
+            <span class="nota-brand-slogan"><span>轻松制作乐谱</span><small>A simple way to make sheet music.</small></span>
             <span class="brand-subtitle" data-i18n="header.subtitle">家庭曲谱工作台</span>
           </div>
+        </div>
+        <div class="nota-home-actions">
+          <button id="btn-start-sample" type="button" data-i18n="start.sample">体验</button>
+          <a href="https://github.com/ren2019/nota" target="_blank" rel="noopener noreferrer" aria-label="GitHub 源码" title="GitHub 源码"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .8a11.2 11.2 0 0 0-3.54 21.83c.56.1.77-.24.77-.54v-2.1c-3.12.68-3.78-1.32-3.78-1.32-.51-1.29-1.25-1.63-1.25-1.63-1.02-.7.08-.69.08-.69 1.13.08 1.72 1.16 1.72 1.16 1 1.72 2.62 1.22 3.26.93.1-.72.39-1.22.71-1.5-2.49-.29-5.11-1.25-5.11-5.54 0-1.22.44-2.22 1.15-3-.12-.28-.5-1.42.11-2.96 0 0 .94-.3 3.08 1.15a10.7 10.7 0 0 1 5.6 0c2.14-1.45 3.08-1.15 3.08-1.15.61 1.54.23 2.68.11 2.96.72.78 1.15 1.78 1.15 3 0 4.3-2.63 5.25-5.13 5.53.4.35.76 1.03.76 2.07v3.09c0 .3.2.65.77.54A11.2 11.2 0 0 0 12 .8Z"/></svg></a>
         </div>
         <div class="header-actions">
           <!-- 应用级的四项：宽屏排在顶栏，手机宽度收进「⋯」（toolpop.ts） -->
@@ -177,19 +182,18 @@
             </div>
             <div class="start-footer">
               <span class="privacy-note"><span aria-hidden="true">●</span> <span data-i18n="start.privacy">在当前设备识谱，保存后与家人共享</span></span>
-              <label class="start-kind"><span data-i18n="start.recogKind">识别为</span>
+              <label class="start-kind" hidden><span data-i18n="start.recogKind">识别为</span>
                 <select id="sel-recog-kind-start" aria-label="识别类型" data-i18n-aria="toolbar.recogKind">
                   <option value="auto" data-i18n="recogKind.auto">自动判断</option>
                   <option value="jianpu" data-i18n="recogKind.jianpu">简谱</option>
                   <option value="staff" data-i18n="recogKind.staff">五线谱</option>
                 </select>
               </label>
-              <label class="start-kind" title="选好图之后先弹「原图页」：横着拍的转过来、页边裁掉、几张图排好顺序，再开始识别" data-i18n-title="start.adjustFirst.title">
+              <label class="start-kind" hidden title="选好图之后先弹「原图页」：横着拍的转过来、页边裁掉、几张图排好顺序，再开始识别" data-i18n-title="start.adjustFirst.title">
                 <input id="chk-adjust-first" type="checkbox"> <span data-i18n="start.adjustFirst">识别前先调整原图</span>
               </label>
               <div class="start-actions">
                 <button id="btn-start-new" class="sample-link">新建空白谱</button>
-                <button id="btn-start-sample" class="sample-link" data-i18n="start.sample">查看示例乐谱</button>
               </div>
             </div>
             <div id="start-feedback" hidden role="alert"></div>

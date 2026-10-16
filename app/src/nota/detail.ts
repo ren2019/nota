@@ -59,6 +59,7 @@ export function mountDocumentDetail(app: App, session: CurrentDocumentSession, r
     query('nota-document-title').textContent = session.title;
     const status = session.current ? (session.dirty ? '有未保存的修改' : '曲谱库 · 已保存') : '当前稿 · 尚未保存入库';
     query('nota-document-status').textContent = session.recovered ? `自动恢复稿 · ${status}` : status;
+    if(app.omr.hasInputs) query('nota-document-status').textContent += ' · 含原图，请人工校对';
     saveButton.hidden = mode !== 'edit'; exportButton.hidden = mode !== 'practice';
     bar.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach(button => {
       const active = button.dataset.mode === mode;
