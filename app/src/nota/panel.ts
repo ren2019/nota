@@ -4,8 +4,7 @@ import { exportJianpuPdf, exportJianpuPng } from "../editor/export";
 import { KEYS, convertPracticeText, keyLabel, type ConversionMode } from "./convert";
 import "./practice.css";
 import { showFooterSettings } from "./footer-settings";
-import { compareReference, scoreReference } from "./structured-score";
-import { parse123 } from "../j123/parse";
+import { assertLossless123 } from "./text-output";
 import { t } from "../i18n";
 
 /** A small addition to Dolce's workbench; all editing and playback stay upstream. */
@@ -111,11 +110,8 @@ export function mountPracticePanel(app: App): void {
       }
       const source = app.convertTo("123");
       if (!source) throw new Error("这份乐谱暂时无法转换，请先核对谱面。");
-      if (app.docFormat === "abc" || app.docFormat === "musicxml") {
-        const differences = compareReference(scoreReference(doc), scoreReference(parse123(source)));
-        if (differences.length) throw new Error(`转换为 123 会改变原谱：${differences[0]}。已保留原格式，请先在原谱中编辑或打印。`);
-      }
-      const converted = convertPracticeText(source, Number(key.value), mode());
+      assertLossless123(doc, source);
+      const converted = convertPracticeText(source, Number(key.value), mode(), app.jianpuAccidentals);
       const before = { text: app.getText(), format: app.docFormat, path: app.filePath, converted: converted.text };
       if (app.docFormat === "123") app.replaceText(converted.text, "input.nota");
       else {
