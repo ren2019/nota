@@ -18,6 +18,7 @@ import { setupCompareSelect } from "./editor/comparemode";
 import { mountPracticePanel } from "./nota/panel";
 import { PRACTICE_SAMPLE } from "./nota/sample";
 import { mountLibrary } from "./nota/library";
+import { mountSourceImport } from "./nota/source-import";
 import { mountTuning } from "./nota/tuning-dialog";
 import { mountPracticeControls } from "./nota/practice-controls";
 import { CurrentDocumentSession } from "./nota/document-session";
@@ -135,6 +136,7 @@ async function boot() {
   const revealWorkspace = (mode: DetailMode = "edit") => detail.open(mode);
   const library = mountLibrary(app, revealWorkspace, session, () => { if(detail.screen !== "library") detail.showDetail("practice"); });
   detail = mountDocumentDetail(app, session, () => { void library.refresh(); });
+  mountSourceImport(library.adoptCandidate, detail);
   mountNotaExport(app);
   mountEditorPage(app, session, detail);
   mountTuning(app, session, detail);
