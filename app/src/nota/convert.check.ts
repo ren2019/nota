@@ -1,3 +1,4 @@
+import { prepareTuning, restoreTuning, type TuningDraft } from "./tuning";
 // Semantic regression checks: compare what sounds and the musical structure.
 import { convertPracticeText, KEYS } from "./convert";
 import { PRACTICE_SAMPLE } from "./sample";
@@ -133,3 +134,25 @@ for (const fixture of [
   equal(playbackPitches(converted), playbackPitches(fixture.text), "real playback input retains pitches with explicit practice accidentals");
 }
 console.log("Practice renotation: repeated flats/sharps, octave changes and cancellation naturals are explicit and pitch preserving.");
+
+// 高层调式旅程：真实123解析/转换与可还原稿，之后的人工修改不能被旧稿覆盖。
+const tuningBefore: TuningDraft = {key:"library-song-1",format:"123",text:example,context:"original-image-project"};
+const tuningResult = prepareTuning(tuningBefore, parse123(example), example, 0, "renotate", "explicit");
+const tuningAfter: TuningDraft = {...tuningBefore,text:tuningResult.text};
+equal(restoreTuning({before:tuningBefore,after:tuningAfter},tuningAfter),tuningBefore,"unchanged converted draft restores exact original");
+
+for(const method of ["renotate","transpose"] as const) {
+  const result=prepareTuning(tuningBefore,parse123(example),example,0,method,"explicit");
+  equal(inspect(result.text).pitches,method === "renotate" ? [60,63,67] : [57,60,64],"dialog preparation uses actual octave-aware conversion");
+  equal(inspect(result.text).structure,inspect(example).structure,"tuning journey preserves rhythm/rests/bars");
+}
+for(const edited of [
+  {...tuningAfter,text:tuningAfter.text + "\nT:人工修改"},
+  {...tuningAfter,key:"another-song"},
+  {...tuningAfter,format:"abc" as const},
+  {...tuningAfter,context:"edited-original-image"},
+]) {
+  let rejected=false;
+  try {restoreTuning({before:tuningBefore,after:tuningAfter},edited);} catch {rejected=true;}
+  equal(rejected,true,"restore refuses changed text/identity/format/original project");
+}

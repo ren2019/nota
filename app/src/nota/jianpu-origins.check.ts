@@ -260,6 +260,14 @@ equal(JSON.stringify(lyricDoc), lyricOriginal, "Hiding lyrics preserves editable
 equal(music(lyricDoc), lyricMusic, "Hiding lyrics preserves playback input");
 painter.loadSync({ view: "original", doc: lyricDoc, style: lyricStyle, showLyrics: true });
 if (!painter.result!.pages.flatMap(p => textOf(p.root)).some(text => /合|成|歌|词/.test(text))) throw new Error("Showing lyrics restores actual output");
+// Independent reading and printing choices must work in both directions.
+for (const reading of [true, false]) for (const printing of [true, false]) {
+  painter.loadSync({ view:"original", doc:lyricDoc, style:lyricStyle, showLyrics:reading });
+  const screen = painter.result!.pages.flatMap(page => textOf(page.root));
+  const output = await painter.outputForLyrics(printing);
+  equal(output.result!.pages.flatMap(page => textOf(page.root)).some(text => /合|成|歌|词/.test(text)), printing, "Printed lyric choice is independent of reading");
+  equal(painter.result!.pages.flatMap(page => textOf(page.root)), screen, "Export never replaces the reading projection");
+}
 
 // PPTX turns SMuFL marks into vector outlines. Repeated explicit flats must
 // survive that serialization, including when exported from another screen view.
@@ -283,6 +291,15 @@ for (const doc of lyricSources) {
     const style = computeStyleForPaper([view === "expanded" ? THEMES.projection : THEMES.print], {mode:view, engine:"jianpu"});
     painter.loadSync({view, doc, style, showLyrics:true});
     if (!painter.result!.pages.flatMap(page => textOf(page.root)).some(text => /合|成|歌|词/.test(text))) throw new Error(`${doc.sourceFormat} lyric fixture must actually show lyrics`);
+    for (const reading of [true, false]) for (const printing of [true, false]) {
+      painter.loadSync({view, doc, style, showLyrics:reading});
+      const screen = painter.result!.pages.flatMap(page => textOf(page.root));
+      const output = painter.outputForLyricsSync(printing);
+      const independentDeck = unzipSync(await buildPptx(output.pptxSource));
+      const hasLyrics = Object.entries(independentDeck).some(([path, bytes]) => /^ppt\/slides\/slide\d+\.xml$/.test(path) && /合|成|歌|词/.test(strFromU8(bytes)));
+      equal(hasLyrics, printing, "Real PPTX obeys print visibility under both reading choices");
+      equal(painter.result!.pages.flatMap(page => textOf(page.root)), screen, "PPTX leaves reading pages unchanged");
+    }
     painter.loadSync({view, doc, style, showLyrics:false});
     equal(painter.result!.pages.flatMap(page => textOf(page.root)).filter(text => /合|成|歌|词/.test(text)), [], `${doc.sourceFormat} ${view}: no printed lyrics`);
     const deck = unzipSync(await buildPptx(painter.pptxSource));
@@ -297,6 +314,13 @@ for (const view of ["staff", "mixed"] as const) {
   if (!painter.result!.pages.flatMap(page => textOf(page.root)).some(text => text.includes("歌词实测"))) throw new Error("Native XML fixture must show a real lyric");
   await painter.load({view, doc:lyricXml, page:{widthPt:595,heightPt:842,override:true}, hideBarNumber:true, showLyrics:false});
   equal(painter.result!.pages.flatMap(page => textOf(page.root)).filter(text => text.includes("歌词实测")), [], "Native staff and mixed output hide lyrics");
+  for (const reading of [true, false]) for (const printing of [true, false]) {
+    await painter.load({view, doc:lyricXml, page:{widthPt:595,heightPt:842,override:true}, hideBarNumber:true, showLyrics:reading});
+    const screen = painter.result!.pages.flatMap(page => textOf(page.root));
+    const output = await painter.outputForLyrics(printing);
+    equal(output.result!.pages.flatMap(page => textOf(page.root)).some(text => text.includes("歌词实测")), printing, "Native staff/mixed prints independently of reading");
+    equal(painter.result!.pages.flatMap(page => textOf(page.root)), screen, "Native export leaves reading pages unchanged");
+  }
 }
 equal(JSON.stringify(lyricXml), lyricXmlRaw, "Native XML output does not mutate source/surface data");
 const { toMidi } = await import("../score/midi");

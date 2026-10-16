@@ -178,6 +178,15 @@ export class App implements OmrHost, PlaybackHost, FormatHost, FormatSwitchHost,
 
   /** Browser-wide output visibility; the editable lyrics are never removed. */
   showLyrics = true;
+  private _readingLyrics: boolean | null = null;
+  /** Reading-only choice. Never persisted, exported, or saved into the library. */
+  get displayLyrics(): boolean { return this._readingLyrics ?? this.showLyrics; }
+  setReadingLyrics(show: boolean | null): void {
+    if (this._readingLyrics === show) return;
+    const before = this.displayLyrics;
+    this._readingLyrics = show;
+    if (this.displayLyrics !== before) this._rerender();
+  }
   setShowLyrics(show: boolean): void {
     if (this.showLyrics === show) return;
     this.showLyrics = show;
@@ -887,13 +896,13 @@ export class App implements OmrHost, PlaybackHost, FormatHost, FormatSwitchHost,
         const f = JpwFile.fromString(this.getText());
         const doc = this.jpwDoc;
         if (!f || !doc) return null;
-        req = { view: this.layoutMode, doc, style: this.styleOf(this.layoutMode), breakDesc: f.getSection(LayoutSection)?.desc ?? null, showLyrics: this.showLyrics, accidentalMode: this.jianpuAccidentals };
+        req = { view: this.layoutMode, doc, style: this.styleOf(this.layoutMode), breakDesc: f.getSection(LayoutSection)?.desc ?? null, showLyrics: this.displayLyrics, accidentalMode: this.jianpuAccidentals };
       } else if (this.layoutMode === "expanded") {
         req = this.expandedRequest();
       } else {
         const doc = this.currentScoreDoc();
         if (!doc || this.docFormat === "pu" || this.docFormat === "musicxml" || !singleVoice(doc)) return null;
-        req = { view: "original", doc, style: this.styleOf("original"), showLyrics: this.showLyrics, accidentalMode: this.jianpuAccidentals };
+        req = { view: "original", doc, style: this.styleOf("original"), showLyrics: this.displayLyrics, accidentalMode: this.jianpuAccidentals };
       }
       if (!req) return null;
       // 另一个排版器实例按当前档与纸排一遍，不动屏幕上那个
@@ -956,7 +965,7 @@ export class App implements OmrHost, PlaybackHost, FormatHost, FormatSwitchHost,
     const breakDesc = f.getSection(LayoutSection)?.desc ?? null;
     this._breakDesc = breakDesc; // 导出 PPTX 时另排一遍要用同一份分页描述
     try {
-      this.painter.loadSync({ view: this.layoutMode, doc, style: this.styleOf(this.layoutMode), breakDesc, showLyrics: this.showLyrics, accidentalMode: this.jianpuAccidentals });
+      this.painter.loadSync({ view: this.layoutMode, doc, style: this.styleOf(this.layoutMode), breakDesc, showLyrics: this.displayLyrics, accidentalMode: this.jianpuAccidentals });
     } catch (e) {
       console.error("layout failed", e);
       return false;
@@ -1026,9 +1035,9 @@ export class App implements OmrHost, PlaybackHost, FormatHost, FormatSwitchHost,
           this.setStatus(t("status.noLines", { what }));
           return false;
         }
-        this.painter.loadSync({ view: "expanded", doc: this._expandedDoc(doc), style: this.styleOf("expanded"), showLyrics: this.showLyrics, accidentalMode: this.jianpuAccidentals });
+        this.painter.loadSync({ view: "expanded", doc: this._expandedDoc(doc), style: this.styleOf("expanded"), showLyrics: this.displayLyrics, accidentalMode: this.jianpuAccidentals });
       } else {
-        this.painter.loadSync({ view: "original", doc, style: this.styleOf("original"), showLyrics: this.showLyrics, accidentalMode: this.jianpuAccidentals });
+        this.painter.loadSync({ view: "original", doc, style: this.styleOf("original"), showLyrics: this.displayLyrics, accidentalMode: this.jianpuAccidentals });
       }
     } catch (e) {
       console.error(`${what}排版失败`, e);
@@ -2633,7 +2642,7 @@ export class App implements OmrHost, PlaybackHost, FormatHost, FormatSwitchHost,
     const outcome = await this.painter.load({
       view: this.mixedShowJianpuLayer ? "mixed" : "staff",
       doc,
-      showLyrics: this.showLyrics, accidentalMode: this.jianpuAccidentals,
+      showLyrics: this.displayLyrics, accidentalMode: this.jianpuAccidentals,
       style: this.staffStyle(),
       page: this.staffPage,
       hideBarNumber: this.mixedHideBarNumber,

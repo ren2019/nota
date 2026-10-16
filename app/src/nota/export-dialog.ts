@@ -1,4 +1,5 @@
 import type { App, PaperEngine } from "../editor/app";
+import type { ScorePainter } from "../layout/painter";
 import { openModal, showOptionsDialog } from "../editor/dialogs";
 import { exportJianpuPdf, exportJianpuPng, exportMixedPdf, exportCurrentPagePng, showExportDialog, showSaveAsDialog } from "../editor/export";
 import { ORIGINAL_PAPERS, PAGE_RATIOS } from "../style/themes";
@@ -81,8 +82,7 @@ export function showNotaExport(app: App): void {
   observer.observe(app.scorePane, {childList: true});
   const done = button("关闭", () => close());
   const { close } = openModal({title: "导出", boxClass: "nota-export-box", body: [body], footer: [done], onClose: () => { observer.disconnect(); updateVersion++; }});
-  function drawFooter() {
-    const painter = app.mode === "mixed" ? app.mixedPainter : app.painter;
+  function drawFooter(painter: ScorePainter | null) {
     if (!painter?.pageCount) { footerPreview.replaceChildren(); return; }
     const index = Math.min(app.pageIndex, painter.pageCount - 1);
     const page = painter.pageSize(index);
@@ -115,14 +115,16 @@ export function showNotaExport(app: App): void {
     const version = ++updateVersion;
     orientation.disabled = expanded || paper.value === "follow" || paper.value === "长图";
     await app.whenIdle(); if (version !== updateVersion) return;
-    const painter = app.mode === "mixed" ? app.mixedPainter : app.painter;
+    const live = app.mode === "mixed" ? app.mixedPainter : app.painter;
+    const painter = live ? await live.outputForLyrics(app.showLyrics) : null;
+    if (version !== updateVersion) return;
     const count = painter?.pageCount ?? 0;
     const page = count ? painter!.pageSize(0) : null;
-    status.textContent = `${app.viewMode === "expanded" ? "展开档" : mixed ? "五线谱 / 混排" : "原样档"} · ${page ? `${Math.round(page.w)}×${Math.round(page.h)} pt · ` : ""}${count} 页${!mixed && count > 1 ? " · PNG 将下载 ZIP（全部页面）" : mixed ? ` · PNG 仅第 ${app.pageIndex + 1} 页` : ""}`;
+    status.textContent = `${app.viewMode === "expanded" ? "展开档" : mixed ? "五线谱 / 混排" : "原样档"} · ${page ? `${Math.round(page.w)}×${Math.round(page.h)} pt · ` : ""}${count} 页${!mixed && count > 1 ? " · PNG 将下载 ZIP（全部页面）" : mixed ? ` · PNG 仅第 ${Math.min(app.pageIndex, count - 1) + 1} 页` : ""}`;
     if (expanded) status.textContent += " · 打印纸请先切换原样档";
     pdf.disabled = png.disabled = busy || count === 0 || app.mode === "recognize";
     if (app.mode === "recognize") status.textContent += " · 请先切回排版视图";
-    drawFooter();
+    drawFooter(painter);
   }
   function applyPaper() {
     if (expanded) {
