@@ -422,7 +422,7 @@ export async function buildPptx(src: PptxSource, bgColor = 0xffffffff, context: 
     const shapes: Shape[] = [];
     collectShapes(pg, font, shapes, src.stackGap ?? STACK_GAP_DEFAULT);
     const source = [src.footerSources?.[index], context.source].filter(Boolean).join(" · ");
-    const layout = layoutFooter({ ...context, source }, index, src.pages.length, false, src.pageWidth);
+    const layout = layoutFooter({ ...context, source }, index, src.pages.length, false, src.pageWidth, src.pageHeight);
     const bottom = Math.max(0, ...shapes.map(s => s.y + s.h));
     const placement = footerPlacement(src.pageHeight, bottom, false, layout.rows > 0, layout.rows);
     if (placement.scale < 1) for (const s of shapes) {

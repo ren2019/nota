@@ -500,3 +500,26 @@ const sourceBook = parse123("X:1\nT:第一首\nI:meta source 第一来源\nK:1=C
 painter.loadSync({ view: "original", doc: sourceBook, style: null });
 equal(painter.pageCount, 1, "Continuous tunebook remains one long page");
 equal(painter.footerSource(0), "第一来源 · 第二来源", "All songs in a continuous page retain their sources");
+
+// Exercise the same fixed-page cap through real OOXML serialization.
+const giantDescription = "来源说明".repeat(1000);
+const giantFooterDoc = parse123(`T:超长来源\nI:meta source ${giantDescription}\nK:1=C\nM:4/4\n1 2 3 4 |]`);
+painter.loadSync({ view: "expanded", doc: giantFooterDoc, style: computeStyleForPaper([THEMES.projection], { mode: "expanded", engine: "jianpu" }) });
+const boundedDeck = unzipSync(await buildPptx(painter.pptxSource, 0xffffffff, { options: { brand: true, date: true, pageNumbers: true }, date: "2026-10-16" }));
+for (const [path, bytes] of Object.entries(boundedDeck).filter(([path]) => /^ppt\/slides\/slide\d+\.xml$/.test(path))) {
+  const slide = strFromU8(bytes);
+  if (!slide.includes("…")) throw new Error(`${path}: extreme source must show an ellipsis`);
+  if (!slide.includes("A simple way to make sheet music.")) throw new Error(`${path}: normal paper keeps the complete slogan`);
+  const xml = new DOMParser().parseFromString(slide, "application/xml");
+  for (const shape of Array.from(xml.getElementsByTagName("p:sp"))) {
+    const off = shape.getElementsByTagName("a:off")[0], ext = shape.getElementsByTagName("a:ext")[0];
+    if (!off || !ext) continue;
+    const x = Number(off.getAttribute("x")), y = Number(off.getAttribute("y"));
+    const width = Number(ext.getAttribute("cx")), height = Number(ext.getAttribute("cy"));
+    if (width < 0 || height < 0) throw new Error(`${path}: exported shapes must never have negative dimensions`);
+    if (Array.from(shape.getElementsByTagName("a:rPr")).some(pr => pr.getAttribute("sz") === "750") &&
+      (x < 0 || y < 0 || x + width > painter.pageWidth * 12700 || y + height > painter.pageHeight * 12700)) throw new Error(`${path}: footer text must stay inside the page`);
+  }
+}
+equal(scoreFooterSource(giantFooterDoc.songs[0]), giantDescription, "Abbreviated exports preserve the complete source in the editable model");
+console.log("Export footer: extreme sources bounded in actual PPTX, complete metadata retained.");
