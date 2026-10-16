@@ -18,7 +18,7 @@ let root: HTMLElement;
 function fresh() {
   return { title: "小星星", loaded: true, source: "示例图片", step: 1, doubts: 2,
     mode: "renotate", target: "C", applied: false, font: "大字", lyrics: true, paper: "A4 · 竖向",
-    saved: false, playing: false, inspector: "校对", space: "制作", page: "work",
+    library: titles.slice(0, 4), saved: false, playing: false, inspector: "校对", space: "制作", page: "work",
     sourceCode: false, original: true, selected: 0, query: "", searched: false,
     notice: "", output: "PDF", note: "", panel: false, speed: "1×", looping: false, dolceMode: "edit", dolceOriginal: false };
 }
@@ -74,7 +74,8 @@ function output() {
   return '<section class="control-section"><span class="eyebrow">一份清楚的练习谱</span><h2>排版与交付</h2><div class="settings-grid"><label class="field">纸张<select data-field="paper"><option>A4 · 竖向</option><option>A4 · 横向</option></select></label><label class="field">数字大小<select data-field="font"><option ' + (s.font === "标准" ? "selected" : "") + '>标准</option><option ' + (s.font === "大字" ? "selected" : "") + '>大字</option><option ' + (s.font === "特大" ? "selected" : "") + '>特大</option></select></label></div><label class="check"><input type="checkbox" data-field="lyrics" ' + (s.lyrics ? "checked" : "") + '>显示歌词</label><p class="muted">A4 · ' + esc(s.font) + ' · ' + (s.lyrics ? "含歌词" : "无歌词") + ' · 1 页（演示）</p><div class="output-actions">' + btn("下载 PDF / 打印", "export", "primary", "PDF") + btn("分享 PNG", "export", "secondary", "PNG") + "</div><hr><h3>保留可编辑稿</h3><p class='muted'>保存到当前家庭 Nota 曲谱库，连接同一服务的家人可访问。</p>" + btn(s.saved ? "已模拟保存到曲谱库" : "保存到曲谱库", "save", "secondary full") + '<details><summary>下载可编辑文件与其他格式</summary><div class="row">' + btn("123 源文件", "export", "text", "123") + btn("MusicXML", "export", "text", "MusicXML") + btn("PPTX / MIDI", "export", "text", "PPTX / MIDI") + "</div></details></section>";
 }
 function library(practice = false) {
-  return '<div class="section-head"><h2>' + (practice ? "选一首，开始练习" : "家庭曲谱库") + '</h2><span class="muted">' + (practice ? 6 : 4) + ' 首演示曲谱</span></div><div class="score-list">' + titles.slice(0, practice ? 6 : 4).map((t, i) => '<button class="score-row" data-act="' + (practice ? "practice" : "open") + '" data-val="' + esc(t) + '"><span class="score-icon">♫</span><span><strong>' + esc(t) + '</strong><small>' + (i === 0 ? "1=E♭ · 4/4" : "1=C · 4/4") + ' · ' + (i === 0 && !practice ? "上次停在校对" : "可直接打开") + '</small></span><span class="row-tail">' + (practice ? "练习 →" : "打开 →") + "</span></button>").join("") + "</div>";
+  const items = variant === "B" ? s.library : titles.slice(0, practice ? 6 : 4);
+  return '<div class="section-head"><h2>' + (practice ? "选一首，开始练习" : "家庭曲谱库") + '</h2><span class="muted">' + items.length + ' 首演示曲谱</span></div><div class="score-list">' + items.map((t) => '<button class="score-row" data-act="' + (practice ? "practice" : "open") + '" data-val="' + esc(t) + '"><span class="score-icon">♫</span><span><strong>' + esc(t) + '</strong><small>' + (t === s.title && variant === "B" ? "1=" + (s.applied ? esc(s.target) : "E♭") + " · 4/4" : t === "小星星" ? "1=E♭ · 4/4" : "1=C · 4/4") + ' · ' + (t === "小星星" && !practice ? "上次停在校对" : "可直接打开") + '</small></span><span class="row-tail">' + (practice ? "练习 →" : "打开 →") + "</span></button>").join("") + "</div>";
 }
 function practice() {
   return '<div class="practice-header">' + btn("← 返回", "back", "text") + '<strong>' + esc(s.title) + '</strong>' + btn("修改曲谱", "edit", "secondary") + '</div><p class="muted compact">只读练习视图 · 点击工具不会改谱</p>' + player() + score(true);
@@ -116,9 +117,11 @@ function compactOutput() {
 }
 function detailPanel() {
   const title = s.inspector;
-  const body = title === "调式" ? compactConversion() : title === "导出" ? compactOutput() : title === "练习设置" ?
+  const body = title === "调式" ? compactConversion() : title === "导出" ? compactOutput() : title === "重命名" ?
+      '<form id="rename-song" class="bd-compact"><label class="field">曲名<input id="song-name" value="' + esc(s.title) + '" maxlength="120" required></label><div class="row">' + btn("取消", "closePanel", "secondary") + btn("确定", "renameCommit", "primary") + '</div></form>' : title === "从库中删除？" ?
+      '<section class="bd-compact"><p>将从曲谱库移除《' + esc(s.title) + '》。</p><div class="row">' + btn("取消", "closePanel", "secondary") + btn("删除", "deleteSong", "bd-danger") + '</div></section>' : title === "练习设置" ?
       '<section class="control-section"><p class="field-title">播放速度</p><div class="bd-options">' + ["0.5×", "0.75×", "1×", "1.25×"].map(v => btn(v, "detailSpeed", s.speed === v ? "selected" : "secondary", v)).join("") + '</div><p class="field-title">谱面字号</p><div class="bd-options">' + ["标准", "大字", "特大"].map(v => btn(v, "detailFont", s.font === v ? "selected" : "secondary", v)).join("") + '</div><label class="check"><input type="checkbox" data-field="lyrics" ' + (s.lyrics ? "checked" : "") + '>显示歌词</label></section>' :
-      '<section class="bd-compact"><div class="bd-more-list">' + btn("打印与分享", "detailTool", "secondary", "导出") + btn("阅读与播放设置", "detailTool", "secondary", "练习设置") + '</div></section>';
+      '<section class="bd-compact"><div class="bd-more-list">' + btn("重命名", "detailTool", "secondary", "重命名") + (s.library.includes(s.title) ? btn("从库中删除", "detailTool", "bd-danger", "从库中删除？") : '<p class="muted">保存入库后可管理这首曲谱。</p>') + '</div></section>';
   const footer = title === "调式" ? '<footer class="bd-panel-footer">' + btn("应用并预览", "apply", "primary full") + '</footer>' : '';
   return '<aside class="bd-panel" role="dialog" aria-modal="true" aria-label="' + title + '"><header class="bd-panel-head"><strong>' + title + '</strong>' + btn(glyph("close") + '<span class="sr-only">关闭弹窗</span>', "closePanel", "bd-icon") + '</header><div class="bd-panel-scroll">' + body + '</div>' + footer + '</aside>';
 }
@@ -143,7 +146,7 @@ export function VariantB() {
   return '<section data-song="' + esc(s.title) + '" class="bd-shell ' + (reading ? 'is-practice ' : 'is-edit ') + (s.panel ? 'has-panel has-modal ' : '') + 'bd-font-' + (s.font === "特大" ? 'xl' : s.font === "大字" ? 'lg' : 'md') + '" aria-label="曲子详情"><header class="bd-appbar">' +
     btn(glyph("back") + '<span class="sr-only">返回曲谱库</span>', "library", "bd-icon") +
     '<div class="bd-song"><h1>' + esc(s.title) + '</h1><small>' + (s.saved ? (reading ? '曲谱库 · 演示曲谱' : '已模拟保存到曲谱库') : '当前编辑稿 · 未保存') + '</small></div>' +
-    (reading ? btn(glyph("more") + '<span class="sr-only">更多曲谱操作</span>', "detailTool", "bd-icon", "更多") : '<div class="bd-doc-actions">' + btn("存曲谱库", "save", "bd-save") + '</div>') + '</header>' +
+    '<div class="bd-doc-actions">' + (reading ? btn("导出", "detailTool", "bd-save", "导出") : btn("保存入库", "save", "bd-save")) + btn(glyph("more") + '<span class="sr-only">更多曲谱操作</span>', "detailTool", "bd-icon", "曲谱管理") + '</div>' + '</header>' +
     '<div class="bd-mode-row"><nav class="bd-mode" aria-label="曲子使用模式">' + btn("练习", "detailMode", reading ? "selected" : "", "练习") + btn("编辑", "detailMode", reading ? "" : "selected", "编辑") + '</nav><span class="bd-mode-hint">' + (reading ? '安心看谱，操作不会改动音符' : '调式、导出，以及 Dolce 原有编辑工具') + '</span></div>' +
     '<div class="bd-workspace"><main class="bd-score-scroll"><div class="bd-score-context"><span>' + (s.applied ? '练习谱 · 1=' + esc(s.target) : '原谱 · 1=E♭') + ' · 4/4</span>' + '<span>简谱 · 8 小节</span>' + '</div><div class="bd-paper">' + score(true) + '</div>' + (reading ? '<p class="bd-end">— 本页结束 —</p>' : '<p class="bd-edit-help">' + ('调式和导出快速处理，详细改谱进入独立编辑页') + '</p>') + '</main>' +
     (s.panel ? btn('<span class="sr-only">收起工具面板</span>', 'closePanel', 'bd-backdrop') + detailPanel() : '') + '</div>' +
@@ -189,7 +192,7 @@ function render() {
   if (nextScroll) nextScroll.scrollTop = oldScroll;
   console.info("[THROWAWAY IA PROTOTYPE]", { variant, scene, ...s });
 }
-function snapshot() { return { s: { ...s }, variant, scene, phone, phoneWidth, logoVersion }; }
+function snapshot() { return { s: { ...s, library: [...s.library] }, variant, scene, phone, phoneWidth, logoVersion }; }
 function viewURL() {
   const u = new URL(location.href);
   if (s.page === "dolce" || s.page === "logos") u.searchParams.set("view", s.page === "dolce" ? "editor" : "logos");
@@ -251,7 +254,27 @@ function action(act: string, val: string) {
   if (act === "code") s.sourceCode = !s.sourceCode;
   if (act === "apply") { s.applied = true; s.saved = false; s.notice = "仅演示应用后的界面状态，未执行真实音乐转换。"; }
   if (act === "undo") s.applied = false;
-  if (act === "save") { s.saved = true; s.notice = "已模拟保存到曲谱库；未下载文件，未写入正式服务。"; }
+  if (act === "save") {
+    s.saved = true;
+    if (variant === "B") {
+      if (!s.library.includes(s.title)) s.library.unshift(s.title);
+      s.space = "练习"; scene = "practice"; s.panel = false; s.playing = false;
+    }
+    s.notice = "已模拟保存入库，切回练习；未写入正式服务。";
+  }
+  if (act === "renameCommit") {
+    const name = (root.querySelector<HTMLInputElement>("#song-name")?.value || "").trim();
+    if (!name) { s.notice = "请输入曲名。"; return render(); }
+    const index = s.library.indexOf(s.title);
+    if (name !== s.title && s.library.includes(name)) { s.notice = "曲谱库中已有同名曲谱，请换一个名字。"; return render(); }
+    if (index !== -1) s.library[index] = name;
+    s.title = name; s.panel = false; s.notice = "已模拟重命名；未写入正式服务。";
+  }
+  if (act === "deleteSong") {
+    s.library = s.library.filter(name => name !== s.title);
+    s.page = "library"; s.panel = false; s.playing = false; s.saved = false;
+    s.notice = "已从演示曲谱库移除，刷新可恢复；未删除正式曲谱。";
+  }
   if (act === "export") { s.output = val; s.notice = "已演示交付 " + val + " 的入口；原型不生成或下载文件。"; }
   if (act === "play") { s.playing = !s.playing; s.notice = "仅演示试听状态，没有实际音频。"; }
   if (act === "loop") s.notice = "循环入口演示：选段后循环选段，未选则循环整首。";
@@ -302,7 +325,7 @@ export function mountIAPrototype(defaultVariant: Variant = "A") {
     else { s.notice = "仅演示此设置的位置。"; }
     render();
   });
-  root.addEventListener("submit", e => { e.preventDefault(); action("search", ""); });
+  root.addEventListener("submit", e => { e.preventDefault(); action((e.target as HTMLFormElement).id === "rename-song" ? "renameCommit" : "search", ""); });
   window.addEventListener("popstate", e => {
     const keepLogo = logoVersion;
     if (e.state?.ia) { const snap = e.state.ia; s = snap.s; variant = snap.variant; scene = snap.scene; phone = snap.phone; phoneWidth = snap.phoneWidth; logoVersion = snap.logoVersion; }

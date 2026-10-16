@@ -532,3 +532,9 @@ body.ia-prototype { color-scheme:light; }
 .ia-prototype .concept-mark { width:112px; height:112px; }
 .ia-prototype .logo-tiny { width:24px; height:24px; }
 @container (max-width:470px) { .ia-prototype .brand-logo { width:24px; height:24px; } }
+
+/* Song management is shared by practice/edit; primary task remains outside. */
+.ia-prototype .bd-more-list { margin-top:0; }
+.ia-prototype .bd-danger { color:#a33f37; background:#f8ece8; border:1px solid #ecd3cd; }
+.ia-prototype #song-name { width:100%; min-height:44px; padding:9px 12px; border:1px solid #cbd6c9; border-radius:8px; font:inherit; }
+.ia-prototype #rename-song .row { margin-top:16px; justify-content:flex-end; }
