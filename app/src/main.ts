@@ -143,7 +143,7 @@ async function boot() {
   mountNotaExport(app);
   mountEditorPage(app, session, detail);
   mountTuning(app, session, detail);
-  mountLibraryManagement(app, session, detail, library.refresh);
+  mountLibraryManagement(app, session, detail, library);
   // Extensions receive the same App/session/shell; no second document is created.
   app.saveToLibrary = async () => { await library.save(); };
   app.libraryDirty = () => session.dirty;

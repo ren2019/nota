@@ -33,6 +33,8 @@ export function mountLibrary(app: App, revealWorkspace: (mode?: "practice" | "ed
   let inFlight:Promise<LibrarySaveResult> | null = null;
   let guard:Promise<boolean> | null = null;
   let fetching = false;
+  let mutationVersion = 0;
+  let refreshAgain = false;
 
   function render() {
     const query = search.value.normalize("NFKC").toLocaleLowerCase().trim();
@@ -72,11 +74,27 @@ export function mountLibrary(app: App, revealWorkspace: (mode?: "practice" | "ed
   }
 
   async function refresh() {
-    if (fetching) return;
+    if (fetching) {refreshAgain=true;return;}
     fetching = true;
-    try { items = await request<LibraryItem[]>(); render(); }
-    catch (e) { message.hidden = false; message.textContent = e instanceof Error ? e.message : String(e); message.classList.add("is-error"); }
-    finally { fetching = false; }
+    const version=mutationVersion;
+    try {
+      const incoming=await request<LibraryItem[]>();
+      if(version !== mutationVersion) {refreshAgain=true;return;}
+      items=incoming;render();
+    }
+    catch (e) {
+      if(version !== mutationVersion) refreshAgain=true;
+      else {message.hidden = false; message.textContent = e instanceof Error ? e.message : String(e); message.classList.add("is-error");}
+    }
+    finally { fetching = false;if(refreshAgain) {refreshAgain=false;void refresh();} }
+  }
+  function applyMetadata(item:LibraryItem) {
+    const old=items.find(existing => existing.id === item.id);
+    if(old && old.revision > item.revision) return;
+    mutationVersion++;items=[item,...items.filter(existing => existing.id !== item.id)];render();
+  }
+  function removeItem(id:string) {
+    mutationVersion++;items=items.filter(item => item.id !== id);render();
   }
 
   async function open(item: LibraryItem, button: HTMLButtonElement) {
@@ -200,5 +218,5 @@ export function mountLibrary(app: App, revealWorkspace: (mode?: "practice" | "ed
   search.addEventListener("input", render);
   root.querySelector("#library-refresh")!.addEventListener("click", () => void refresh());
   void refresh();
-  return { save, refresh, confirmReplace, adoptCandidate, detach: () => session.detach() };
+  return { save, refresh, applyMetadata, removeItem, confirmReplace, adoptCandidate, detach: () => session.detach() };
 }

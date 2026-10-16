@@ -140,7 +140,7 @@ export class CurrentDocumentSession {
       this.app.playback.stop();this.app.omr.clear();this.app.adoptText('123','',null);this.app.formats.use(null);
       this.app.exportSourceDescription='';this.app.markClean();this.notify();
       return 'cleared';
-    } finally {releaseDraft();}
+    } finally {releaseDraft();this.app.markClean();}
   }
   detach(source?:SourceProvenance,title?:string):void {
     this.generation++; this.active=true; this.recovered=false;
