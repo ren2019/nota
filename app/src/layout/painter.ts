@@ -28,6 +28,7 @@ import type { JianpuGrid } from "./jianpu/metrics";
 import { ScoreIndex, type Hit } from "./scoreindex";
 import { Playhead, spanIn, svgBox } from "./playhead";
 import type { IdentityKind } from "./identity";
+import { projectJianpuOutput, type JianpuAccidentalMode } from "../nota/jianpu-output";
 
 // ---------------------------------------------------------------- 请求与资源
 
@@ -49,6 +50,8 @@ export interface StaffPaintRequest {
 export interface JianpuPaintRequest {
   readonly view: "original" | "expanded";
   readonly doc: ScoreDoc;
+  /** Captured output preference. Omit to retain the caller's existing marks. */
+  readonly accidentalMode?: JianpuAccidentalMode;
   /** computed 样式表（原样档那份，与旧简谱引擎同一份）。null = print 主题出厂。 */
   readonly style: StyleSheet | null;
   /** 照文档里的换行排，不按窄纸重新断行（断点已由调用方写进文档时用）。 */
@@ -242,7 +245,8 @@ export class ScorePainter {
     const paper = resolvePaper(sheet.page);
     // 展开档：投影片纸（展开档样式的 `page.size`）
     const slide = req.view === "expanded" ? { width: sheet.page.size?.[0] ?? 960, height: sheet.page.size?.[1] ?? 540, continuous: false } : null;
-    const r = layoutJianpu(req.doc, {
+    const doc = req.accidentalMode ? projectJianpuOutput(req.doc, req.accidentalMode) : req.doc;
+    const r = layoutJianpu(doc, {
       style: jianpuStyleOf(sheet),
       // 长图：宽与旧简谱引擎的长图同一张（500 首那张纸的宽），高由内容定
       page: slide ?? (req.page

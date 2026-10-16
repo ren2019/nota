@@ -1,6 +1,10 @@
 // 界面文案（中文，同时是键的权威清单）。新增文字两边同加：en.ts 漏键 tsc 报错。
 // 占位写 {name}，由 t(key, { name }) 替换。
 export const zh = {
+  "settings.tab.jianpu": "简谱输出",
+  "settings.jianpu.hint": "在当前设备上立即生效；不改原稿与试听音高。必要的还原号始终保留。",
+  "settings.jianpu.explicit": "逐音明确标注（默认） · 1 ♭3 5 ♭3",
+  "settings.jianpu.measure": "小节内延续 · 1 ♭3 5 3",
   // 应用与页头
   "app.windowTitle": "Nota",
   "header.home": "首页",

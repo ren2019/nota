@@ -88,6 +88,13 @@ export class AccidentalCarry {
   /** 唱名 → 相对调号的半音偏移 */
   private offsets = new Map<number, number>();
 
+  /** A grace group inherits the current context without changing the main melody. */
+  fork(): AccidentalCarry {
+    const carry = new AccidentalCarry();
+    carry.offsets = new Map(this.offsets);
+    return carry;
+  }
+
   /** 这个音要不要印记号：相对调号的偏移与本小节已延续的不同才印，按偏移命名。 */
   mark(pitch: Pitch, key: Key): Accidental | undefined {
     const { number } = degreeFromPitch(pitch, key);

@@ -10,6 +10,7 @@ import { applyBreaks } from "../model/breaks";
 import { locate } from "../model/edit";
 import { JpwFile, LayoutSection } from "../jpword/jpwfile";
 import { measureDocument, PaintResources, ScorePainter, type SyncPaintRequest } from "../layout/painter";
+import { DEFAULT_JIANPU_ACCIDENTALS, jianpuAccidentalMode, type JianpuAccidentalMode } from "../nota/jianpu-output";
 import { computeStyle, sanitizeLayer, upsertRule, type StyleRule } from "../style/cascade";
 import type { Length } from "../style/units";
 import { NOTE_FONTS } from "../style/fonts";
@@ -160,6 +161,16 @@ export class App implements OmrHost, PlaybackHost, FormatHost, FormatSwitchHost,
   private _userLayers: Record<"projection" | "print" | "staff" | "header", StyleRule[]> = { projection: [], print: [], staff: [], header: [] };
   // `header`：页眉四项（标题/副标题/经文/词曲作者）的字体字号，**各档共用一份**，叠在各档用户层之上（`style/header.ts`）
 
+  /** Current-device output preference; never changes the editor/library source. */
+  jianpuAccidentals: JianpuAccidentalMode = DEFAULT_JIANPU_ACCIDENTALS;
+
+  setJianpuAccidentals(mode: JianpuAccidentalMode): void {
+    const next = jianpuAccidentalMode(mode);
+    if (next === this.jianpuAccidentals) return;
+    this.jianpuAccidentals = next;
+    this.saveSettings();
+    this._rerender();
+  }
   /** 某一档、某把尺子看到的 computed 样式表（内置主题 → 曲内层 → 用户层）。
    *  曲内层（谱里自带的纸，`style/paper.ts`）只垫在原样档下面：展开档是投影片，不认纸。 */
   styleOf(mode: JianpuLayoutMode): StyleSheet {
@@ -615,6 +626,7 @@ export class App implements OmrHost, PlaybackHost, FormatHost, FormatSwitchHost,
   loadSettings(): void {
     const s = loadPersistedSettings();
     if (!s) return;
+    this.jianpuAccidentals = jianpuAccidentalMode(s.jianpuAccidentals);
     this.omr.loadSettings(s);
     this.playback.loadSettings(s);
     this.visual.loadSettings(s);
@@ -648,6 +660,7 @@ export class App implements OmrHost, PlaybackHost, FormatHost, FormatSwitchHost,
   /** 两个控制器也要用（切输出格式 / 改速度后持久化）。 */
   saveSettings(): void {
     savePersistedSettings({
+      jianpuAccidentals: this.jianpuAccidentals,
       styleLayers: this._userLayers,
       zoom: this.zoom,
       mixedHideBarNumber: this.mixedHideBarNumber,
@@ -822,7 +835,7 @@ export class App implements OmrHost, PlaybackHost, FormatHost, FormatSwitchHost,
       } else {
         const doc = this.currentScoreDoc();
         if (!doc || this.docFormat === "pu" || this.docFormat === "musicxml" || !singleVoice(doc)) return null;
-        req = { view: "original", doc, style: this.styleOf("original") };
+        req = { view: "original", doc, style: this.styleOf("original"), ...(this.docFormat === "123" ? { accidentalMode: this.jianpuAccidentals } : {}) };
       }
       if (!req) return null;
       // 另一个排版器实例按当前档与纸排一遍，不动屏幕上那个
@@ -957,7 +970,7 @@ export class App implements OmrHost, PlaybackHost, FormatHost, FormatSwitchHost,
         }
         this.painter.loadSync({ view: "expanded", doc: this._expandedDoc(doc), style: this.styleOf("expanded") });
       } else {
-        this.painter.loadSync({ view: "original", doc, style: this.styleOf("original") });
+        this.painter.loadSync({ view: "original", doc, style: this.styleOf("original"), ...(this.docFormat === "123" ? { accidentalMode: this.jianpuAccidentals } : {}) });
       }
     } catch (e) {
       console.error(`${what}排版失败`, e);
