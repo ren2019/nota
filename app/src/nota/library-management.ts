@@ -10,7 +10,8 @@ function failure(error:unknown):string {
   return error instanceof LibraryError && (error.status === 409 || error.status === 404) ? `${message} 当前稿仍保留。请关闭后返回曲谱库重新打开，或保存为副本。` : message;
 }
 /** Metadata operations never submit App.getText(); all write/delete responses are revision checked. */
-export function mountLibraryManagement(app:App,session:CurrentDocumentSession,detail:DocumentDetail,refreshLibrary:() => Promise<void>):void {
+interface LibraryMetadataCache {refresh():Promise<void>;applyMetadata(item:LibraryItem):void;removeItem(id:string):void}
+export function mountLibraryManagement(app:App,session:CurrentDocumentSession,detail:DocumentDetail,library:LibraryMetadataCache):void {
   const more=button('⋯');more.id='nota-library-more';more.setAttribute('aria-label','更多曲谱操作');more.setAttribute('aria-haspopup','dialog');more.setAttribute('aria-expanded','false');
   detail.actionSlot.append(more);
   function openRename(item:LibraryItem) {
@@ -33,7 +34,7 @@ export function mountLibraryManagement(app:App,session:CurrentDocumentSession,de
         const renamed=await renameLibraryScore(item,title);
         // A newer save or another song must not be replaced by a delayed metadata response.
         if(session.current?.id === item.id && session.current.revision === item.revision) session.updateIdentity(renamed);
-        await refreshLibrary();detail.refresh();app.setStatus(`曲谱库名称已改为「${renamed.title}」；谱面标题未改动。`);close();
+        library.applyMetadata(renamed);void library.refresh();detail.refresh();app.setStatus(`曲谱库名称已改为「${renamed.title}」；谱面标题未改动。`);close();
       } catch(error) {feedback.textContent=failure(error);feedback.hidden=false;}
       finally {busy=false;input.disabled=false;submit.disabled=cancel.disabled=false;submit.textContent='确认重命名';}
     })();
@@ -59,8 +60,9 @@ export function mountLibraryManagement(app:App,session:CurrentDocumentSession,de
       try {
         await deleteLibraryScore(item);
         const outcome=session.forgetDeleted(item.id,protectedDraft);
-        close();await refreshLibrary();
+        library.removeItem(item.id);close();
         if(outcome !== 'other-document') detail.home(true);
+        void library.refresh();
         const message=outcome === 'kept-draft' ? `已从曲谱库删除「${item.title}」。请求期间的新修改保留为未入库稿。` : `已从共享曲谱库删除「${item.title}」。`;
         app.setStatus(message);
         const feedback=document.getElementById('start-feedback');if(feedback) {feedback.textContent=message;feedback.hidden=false;}
