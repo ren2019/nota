@@ -546,14 +546,15 @@ for (const brand of [false, true]) for (const date of [false, true]) for (const 
   const metaLabel = [date ? "2026-10-16" : "", pageNumbers ? `1 / ${painter.pageCount}` : ""].filter(Boolean).join(" · ");
   const metaShape = metaLabel ? label(metaLabel) : undefined;
   if (metaLabel && (!metaShape || position(metaShape).y !== position(sourceLabel).y)) throw new Error("Date and pages share the source's first-row baseline");
-  const brandLabel = label("Typeset with Nota · A simple way to make sheet music.");
+  const brandLabel = label("Nota · A simple way to make sheet music.");
+  const brandPrefix = label("Typeset with");
   if (!!brandLabel !== brand) throw new Error("Brand setting controls both brand and exact slogan");
   if (brandLabel) {
     if (position(brandLabel).y <= position(sourceLabel).y) throw new Error("Brand row follows the source/date row");
-    if (position(brandLabel).x <= position(sourceLabel).x) throw new Error("Brand text leaves space for its leading logo");
+    if (!brandPrefix || position(brandPrefix).x !== position(sourceLabel).x) throw new Error("Typeset with begins the brand row at the source left edge");
     for (const mark of markShapes) {
       const p = position(mark);
-      equal(p.x, position(sourceLabel).x, "Logo aligns to the source left edge");
+      if (!brandPrefix || p.x <= position(brandPrefix).x || p.x >= position(brandLabel).x) throw new Error("Logo is embedded between Typeset with and Nota");
       const ext = mark.getElementsByTagName("a:ext")[0]!;
       const w = Number(ext.getAttribute("cx")), h = Number(ext.getAttribute("cy"));
       if (p.x < 0 || p.y < 0 || p.x + w > painter.pageWidth * 12700 || p.y + h > painter.pageHeight * 12700) throw new Error("Embedded logo remains inside the physical slide");

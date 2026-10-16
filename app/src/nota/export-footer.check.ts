@@ -76,8 +76,11 @@ if (!bounded.labels.filter(l => l.row >= bounded.mark!.row).map(l => l.text).joi
 
 const twoRow = layoutFooter({ ...context, source: "公开谱集" }, 0, 2, false, 595, 842, s => [...s].length * 7.5);
 equal(twoRow.rows, 2);
-equal(twoRow.labels.map(l => [l.text, l.row, l.align]), [["公开谱集", 0, "left"], ["2026-10-16 · 1 / 2", 0, "right"], ["Typeset with Nota · A simple way to make sheet music.", 1, "left"]]);
-if (!twoRow.mark || twoRow.mark.row !== 1 || twoRow.mark.x !== twoRow.labels[0]!.x) throw new Error("Logo begins the second row aligned to the source edge");
+equal(twoRow.labels.map(l => [l.text, l.row, l.align]), [["公开谱集", 0, "left"], ["2026-10-16 · 1 / 2", 0, "right"], ["Typeset with", 1, "left"], ["Nota · A simple way to make sheet music.", 1, "left"]]);
+const prefix = twoRow.labels.find(l => l.text === "Typeset with")!;
+const name = twoRow.labels.find(l => l.text.startsWith("Nota ·"))!;
+equal(prefix.x, twoRow.labels[0]!.x);
+if (!twoRow.mark || twoRow.mark.row !== 1 || twoRow.mark.x < prefix.x + prefix.width || twoRow.mark.x + twoRow.mark.width >= name.x) throw new Error("Logo belongs after Typeset with and directly before Nota");
 const empty = layoutFooter({ ...context, options: { brand: false, date: false, pageNumbers: false } }, 0, 1, false, 595, 842);
 equal(empty.rows, 0);
 equal(empty.mark, undefined);
@@ -94,6 +97,7 @@ for (const brand of [false, true]) for (const date of [false, true]) for (const 
 }
 for (const width of [5, 48, 96, 595]) for (const height of [5, 20, 100, 842]) {
   const layout = layoutFooter({ ...context, source: hugeSource }, 0, 2, false, width, height, s => [...s].length * 7.5);
+  if (layout.labels.some(label => label.text.includes("\uFFFC"))) throw new Error("Inline graphic placeholder must never leak into exported text");
   if (!layout.mark) continue;
   const placement = footerPlacement(height, height, false, true, layout.rows);
   const top = placement.baseline - (layout.rows - 1 - layout.mark.row) * 10 - layout.mark.height * 0.85;

@@ -48,3 +48,11 @@
 ## 边界
 
 未在本轮实测 iPhone/iPad PWA 或 Tauri 原生导出；桌面 Safari 结果不代替这些设备的实测。未修改手机界面或下载入口。PPTX 预览器提示现有默认 Microsoft YaHei 缺失并使用替代字体，已查看页面的中文、标志与页脚可读。没有新增 SVG 下载格式；123、MusicXML、MIDI 等数据导出不添加可视品牌页脚。未开发用户名功能。
+
+## 后续：图形移到 Nota 前
+
+用户后续指定图形放在产品名称前面。品牌行调整为 `Typeset with [图形] Nota · A simple way to make sheet music.`，保留整组靠左，图形两侧留距；窄页将图形和 Nota 一起换行。更新共享布局及真实 PPTX 位置回归，不更改曲谱或图形几何。
+
+测试、构建和差异检查通过。Safari 重新下载莫斯科 PDF、PNG 与 PPTX，页脚位置、留距正常，PDF 仍为 1 页。证据在 `local/qa/footer-logo-position/`。
+
+资源现状已核实：PDF/PNG/PPTX 共用导出图形定义，但这份几何是从 favicon 提取的静态副本，替换应用 favicon 不会自动更新导出图形；已导出的文件也不会追溯更新。本轮仅调整位置，没有实现应用图标与导出图形的自动同步。

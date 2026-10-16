@@ -64,25 +64,35 @@ export function layoutFooter(context: FooterContext, index: number, count: numbe
   const margin = Math.min(FOOTER_STYLE.margin, width / 8);
   const inner = Math.max(0, width - 2 * margin);
   const limit = continuous ? Infinity : footerCapacity(height).rows;
-  function wrap(value: string, available: number): string[] {
+  const markWidth = FOOTER_STYLE.size * NOTA_MARK_RATIO;
+  // The object replacement character is an internal inline graphic, never
+  // exported as text. Keep it and Nota together when the brand wraps.
+  const markToken = "\uFFFC";
+  const nameToken = markToken + NOTA_NAME;
+  const measureText = (value: string, brand: boolean) => brand
+    ? measure(value.replace(markToken, "")) + (value.includes(markToken) ? markWidth + 2 * FOOTER_STYLE.markGap : 0)
+    : measure(value);
+  function wrap(value: string, available: number, brand = false): string[] {
     if (!value || available < measure("…")) return [];
     return value.split(/\r?\n/).flatMap(paragraph => {
       const out: string[] = [];
       let line = "";
-      for (const ch of paragraph) {
-        if (line && measure(line + ch) > available) { out.push(line.trimEnd()); line = ""; }
-        line += measure(ch) <= available ? ch : "…";
+      const parts = brand ? paragraph.split(nameToken) : [];
+      const tokens = parts.length === 2 ? [...parts[0]!, nameToken, ...parts[1]!] : [...paragraph];
+      for (const ch of tokens) {
+        if (line && measureText(line + ch, brand) > available) { out.push(line.trimEnd()); line = ""; }
+        line += measureText(ch, brand) <= available ? ch : "…";
       }
       if (line.trim()) out.push(line.trimEnd());
       return out;
     });
   }
-  function fit(lines: string[], available: number, count: number): string[] {
+  function fit(lines: string[], available: number, count: number, brand = false): string[] {
     if (count <= 0) return [];
     if (lines.length <= count) return lines;
     const kept = lines.slice(0, count);
     const tail = [...kept[kept.length - 1]!];
-    while (tail.length && measure(tail.join("") + "…") > available) tail.pop();
+    while (tail.length && measureText(tail.join("") + "…", brand) > available) tail.pop();
     kept[kept.length - 1] = tail.join("").trimEnd() + "…";
     return kept;
   }
@@ -94,20 +104,29 @@ export function layoutFooter(context: FooterContext, index: number, count: numbe
   const leftWidth = Math.max(0, inner - (text.right ? rightWidth + gap : 0));
   const rawLeft = wrap(text.left, leftWidth), rawRight = wrap(text.right, rightWidth);
   const hasInfo = rawLeft.length > 0 || rawRight.length > 0;
-  const markWidth = FOOTER_STYLE.size * NOTA_MARK_RATIO;
-  const brandX = margin + markWidth + FOOTER_STYLE.markGap;
-  const brandWidth = Math.max(0, inner - markWidth - FOOTER_STYLE.markGap);
-  const brand = fit(wrap(text.brand, brandWidth), brandWidth, Math.max(0, limit - (hasInfo ? 1 : 0)));
+  const inlineBrand = text.brand.replace(NOTA_NAME, nameToken);
+  const brand = fit(wrap(inlineBrand, inner, true), inner, Math.max(0, limit - (hasInfo ? 1 : 0)), true);
   const infoLimit = limit - brand.length;
   const left = fit(rawLeft, leftWidth, infoLimit), right = fit(rawRight, rightWidth, infoLimit);
   const infoRows = Math.max(left.length, right.length);
   const labels: FooterLabel[] = [];
   for (const [lines, align, x, available] of [[left, "left", margin, leftWidth], [right, "right", width - margin - rightWidth, rightWidth]] as const)
     for (const [row, value] of lines.entries()) labels.push({ text: value, align, x, width: available, row });
-  for (const [index, value] of brand.entries()) labels.push({ text: value, align: "left", x: brandX, width: brandWidth, row: infoRows + index });
-  return { labels, rows: infoRows + brand.length,
-    ...(brand.length ? { mark: { x: margin, row: infoRows, width: markWidth, height: FOOTER_STYLE.size } } : {}),
-  };
+  let mark: FooterMark | undefined;
+  for (const [index, value] of brand.entries()) {
+    const row = infoRows + index;
+    if (!value.includes(markToken)) {
+      labels.push({ text: value, align: "left", x: margin, width: inner, row });
+      continue;
+    }
+    const [before, after] = value.split(markToken);
+    const prefixWidth = measure(before!);
+    if (before!.trim()) labels.push({ text: before!.trimEnd(), align: "left", x: margin, width: prefixWidth, row });
+    mark = { x: margin + prefixWidth + FOOTER_STYLE.markGap, row, width: markWidth, height: FOOTER_STYLE.size };
+    const offset = prefixWidth + markWidth + 2 * FOOTER_STYLE.markGap;
+    if (after) labels.push({ text: after, align: "left", x: margin + offset, width: inner - offset, row });
+  }
+  return { labels, rows: infoRows + brand.length, ...(mark ? { mark } : {}) };
 }
 
 /** Fit the export as a whole without changing notes or pagination. The shared
