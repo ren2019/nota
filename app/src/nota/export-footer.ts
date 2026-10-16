@@ -56,8 +56,8 @@ function footerCapacity(height: number) {
 
 export interface FooterMark { x: number; width: number; height: number; row: number }
 
-/** One shared two-tier layout: score information first, then the complete
- * left-aligned brand group. Fixed pages abbreviate; long images retain text. */
+/** Source information occupies the full first tier. The next tier shares
+ * left-aligned branding and right-aligned date/pages. Fixed pages abbreviate. */
 export function layoutFooter(context: FooterContext, index: number, count: number, continuous: boolean, width: number, height: number,
   measure: (text: string) => number = text => measureGlyphText(text, "Arial, sans-serif", FOOTER_STYLE.size).width): { labels: FooterLabel[]; rows: number; mark?: FooterMark } {
   const text = footerText(context, index, count, continuous);
@@ -96,27 +96,27 @@ export function layoutFooter(context: FooterContext, index: number, count: numbe
     kept[kept.length - 1] = tail.join("").trimEnd() + "…";
     return kept;
   }
-  const both = !!(text.left && text.right);
+  const both = !!(text.brand && text.right);
   const gap = both ? Math.min(FOOTER_STYLE.columnGap, inner / 10) : 0;
-  // Reserve only the actual date/page label width on normal paper. Narrow
-  // paper shares the line and wraps instead of starving the source column.
+  // Reserve date/page width beside the brand; source text keeps the full page width.
   const rightWidth = text.right ? Math.min(measure(text.right), both ? inner / 2 : inner) : 0;
-  const leftWidth = Math.max(0, inner - (text.right ? rightWidth + gap : 0));
-  const rawLeft = wrap(text.left, leftWidth), rawRight = wrap(text.right, rightWidth);
-  const hasInfo = rawLeft.length > 0 || rawRight.length > 0;
+  const brandWidth = Math.max(0, inner - (text.right ? rightWidth + gap : 0));
+  const rawLeft = wrap(text.left, inner), rawRight = wrap(text.right, rightWidth);
+  const secondaryLimit = Math.max(0, limit - (rawLeft.length ? 1 : 0));
   const inlineBrand = text.brand.replace(NOTA_NAME, nameToken);
-  const brand = fit(wrap(inlineBrand, inner, true), inner, Math.max(0, limit - (hasInfo ? 1 : 0)), true);
-  const infoLimit = limit - brand.length;
-  const left = fit(rawLeft, leftWidth, infoLimit), right = fit(rawRight, rightWidth, infoLimit);
-  const infoRows = Math.max(left.length, right.length);
+  const brand = fit(wrap(inlineBrand, brandWidth, true), brandWidth, secondaryLimit, true);
+  const right = fit(rawRight, rightWidth, secondaryLimit);
+  const secondaryRows = Math.max(brand.length, right.length);
+  const left = fit(rawLeft, inner, limit - secondaryRows);
+  const infoRows = left.length;
   const labels: FooterLabel[] = [];
-  for (const [lines, align, x, available] of [[left, "left", margin, leftWidth], [right, "right", width - margin - rightWidth, rightWidth]] as const)
-    for (const [row, value] of lines.entries()) labels.push({ text: value, align, x, width: available, row });
+  for (const [row, value] of left.entries()) labels.push({text:value, align:'left', x:margin, width:inner, row});
+  for (const [index, value] of right.entries()) labels.push({text:value, align:'right', x:width-margin-rightWidth, width:rightWidth, row:infoRows+index});
   let mark: FooterMark | undefined;
   for (const [index, value] of brand.entries()) {
     const row = infoRows + index;
     if (!value.includes(markToken)) {
-      labels.push({ text: value, align: "left", x: margin, width: inner, row });
+      labels.push({ text: value, align: "left", x: margin, width: brandWidth, row });
       continue;
     }
     const [before, after] = value.split(markToken);
@@ -124,9 +124,9 @@ export function layoutFooter(context: FooterContext, index: number, count: numbe
     if (before!.trim()) labels.push({ text: before!.trimEnd(), align: "left", x: margin, width: prefixWidth, row });
     mark = { x: margin + prefixWidth + FOOTER_STYLE.markGap, row, width: markWidth, height: FOOTER_STYLE.size };
     const offset = prefixWidth + markWidth + 2 * FOOTER_STYLE.markGap;
-    if (after) labels.push({ text: after, align: "left", x: margin + offset, width: inner - offset, row });
+    if (after) labels.push({ text: after, align: "left", x: margin + offset, width: brandWidth - offset, row });
   }
-  return { labels, rows: infoRows + brand.length, ...(mark ? { mark } : {}) };
+  return { labels, rows: infoRows + secondaryRows, ...(mark ? { mark } : {}) };
 }
 
 /** Fit the export as a whole without changing notes or pagination. The shared

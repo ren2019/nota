@@ -54,7 +54,7 @@ equal(scoreFooterSource(parse123("T:无来源\nK:1=C\nM:4/4\n1 2 3 4 |]").songs[
 
 // Fixed pages must abbreviate extreme source text instead of inverting music.
 const hugeSource = "来源说明".repeat(1000);
-const bounded = layoutFooter({ ...context, source: hugeSource }, 0, 2, false, 595, 842, s => [...s].length * 7.5);
+const bounded = layoutFooter({ ...context, source: hugeSource }, 0, 2, false, 595, 842, s => [...s].length * 4);
 const boundedPlacement = footerPlacement(842, 700, false, true, bounded.rows);
 if (boundedPlacement.scale <= 0 || bounded.rows > 20) throw new Error("Extreme source must have a positive music scale and bounded footer height");
 if (!bounded.labels.some(l => l.align === "left" && l.text.endsWith("…"))) throw new Error("Truncated source must be marked with an ellipsis");
@@ -74,9 +74,10 @@ const boundedBrandOff = layoutFooter({ ...context, source: hugeSource, options: 
 if (!boundedBrandOff.labels.length || !boundedBrandOff.labels[boundedBrandOff.labels.length - 1]!.text.endsWith("…")) throw new Error("Source stays visible and bounded with every optional brand item off");
 if (!bounded.labels.filter(l => l.row >= bounded.mark!.row).map(l => l.text).join("\n").includes("A simple way to make sheet music.")) throw new Error("Normal paper must retain the complete official slogan");
 
-const twoRow = layoutFooter({ ...context, source: "公开谱集" }, 0, 2, false, 595, 842, s => [...s].length * 7.5);
+const twoRow = layoutFooter({ ...context, source: "公开谱集" }, 0, 2, false, 595, 842, s => [...s].length * 4);
 equal(twoRow.rows, 2);
-equal(twoRow.labels.map(l => [l.text, l.row, l.align]), [["公开谱集", 0, "left"], ["2026-10-16 · 1 / 2", 0, "right"], ["Typeset with", 1, "left"], ["Nota · A simple way to make sheet music.", 1, "left"]]);
+equal(twoRow.labels.map(l => [l.text, l.row, l.align]), [["公开谱集", 0, "left"], ["2026-10-16 · 1 / 2", 1, "right"], ["Typeset with", 1, "left"], ["Nota · A simple way to make sheet music.", 1, "left"]]);
+equal(twoRow.labels[0]!.width, 595 - 48);
 const prefix = twoRow.labels.find(l => l.text === "Typeset with")!;
 const name = twoRow.labels.find(l => l.text.startsWith("Nota ·"))!;
 equal(prefix.x, twoRow.labels[0]!.x);
@@ -89,11 +90,11 @@ const brandOnly = layoutFooter({ ...context, options: { brand: true, date: false
 equal(brandOnly.rows, 1);
 equal(brandOnly.mark?.row, 0);
 for (const brand of [false, true]) for (const date of [false, true]) for (const pageNumbers of [false, true]) for (const hasSource of [false, true]) {
-  const layout = layoutFooter({ ...context, source: hasSource ? "真实来源" : "", options: { brand, date, pageNumbers } }, 0, 2, false, 595, 842, s => [...s].length * 7.5);
-  const information = hasSource || date || pageNumbers;
-  equal(layout.rows, Number(information) + Number(brand));
+  const layout = layoutFooter({ ...context, source: hasSource ? "真实来源" : "", options: { brand, date, pageNumbers } }, 0, 2, false, 595, 842, s => [...s].length * 4);
+  equal(layout.rows, Number(hasSource) + Number(brand || date || pageNumbers));
   equal(!!layout.mark, brand);
-  if (layout.mark) equal(layout.mark.row, Number(information));
+  if (layout.mark) equal(layout.mark.row, Number(hasSource));
+  for (const label of layout.labels.filter(label => label.align === 'right')) equal(label.row, Number(hasSource));
 }
 for (const width of [5, 48, 96, 595]) for (const height of [5, 20, 100, 842]) {
   const layout = layoutFooter({ ...context, source: hugeSource }, 0, 2, false, width, height, s => [...s].length * 7.5);
