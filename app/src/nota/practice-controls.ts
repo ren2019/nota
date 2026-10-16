@@ -36,24 +36,16 @@ export function mountPracticeControls(app: App, session: CurrentDocumentSession,
     if(!value) { value={scale:matchMedia('(max-width:680px)').matches ? 1.5 : 1,lyrics:true}; prefs.set(key,value); }
     return value;
   };
-  function markLyrics() {
-    // The renderer's public identity lookup also covers staff/mixed leaf glyphs.
-    for(const song of app.scoreDoc()?.songs ?? []) for(const part of song.parts) for(const measure of part.measures) for(const element of measure.elements) {
-      if(element.kind !== 'chord') continue;
-      for(const lyric of element.lyrics ?? []) for(const node of app.painter.lyricEls(element.id,lyric.number)) node.classList.add('nota-reading-lyric');
-    }
-  }
   function applyReading() {
     const value=current();
     pane.style.setProperty('--nota-reading-scale',String(value.scale));
-    pane.classList.toggle('nota-reading-hide-lyrics',!value.lyrics);
+    app.setReadingLyrics(value.lyrics);
     size.value=String(value.scale); lyrics.checked=value.lyrics;
-    markLyrics();
   }
   function sync() {
     const next=detail.screen === 'detail' && detail.mode === 'practice';
     if(next !== active) {
-      if(!next) { app.playback.stop(); dialog.close(); }
+      if(!next) { app.playback.stop(); dialog.close(); app.setReadingLyrics(null); }
       for(const {node,marker,target} of movable) {
         if(next) target.append(node); else marker.after(node);
       }
@@ -75,7 +67,6 @@ export function mountPracticeControls(app: App, session: CurrentDocumentSession,
   };
   lyrics.onchange=() => {current().lyrics=lyrics.checked;applyReading();};
   new MutationObserver(sync).observe(root,{attributes:true,attributeFilter:['data-nota-screen','data-nota-mode']});
-  new MutationObserver(() => {if(active) markLyrics();}).observe(pane,{childList:true,subtree:true});
   session.subscribe(sync);
   sync();
 }

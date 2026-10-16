@@ -185,6 +185,7 @@ export class ScorePainter {
   /** 简谱这一路提交的结果（页面、定位结构与 note / syllable 身份索引）。与 staff 互斥。 */
   private original: JianpuLayout | null = null;
   private version = 0;
+  private committedRequest: PaintRequest | null = null;
 
   constructor(readonly resources: PaintResources = PaintResources.shared()) {}
 
@@ -230,6 +231,7 @@ export class ScorePainter {
     }
     if (v !== this.version) return "superseded";
     commit();
+    this.committedRequest = request;
     return "committed";
   }
 
@@ -238,6 +240,27 @@ export class ScorePainter {
     if (!this.resources.ready()) throw new Error("排版资源还没准备好");
     ++this.version;
     this._jianpuCommit(request)();
+    this.committedRequest = request;
+  }
+
+  /** Reuse the actual current layout request for export without changing the
+   * live reading projection, source model, user settings or playback indexes. */
+  async outputForLyrics(showLyrics: boolean): Promise<ScorePainter> {
+    const request = this.committedRequest;
+    if (!request || (request.showLyrics !== false) === showLyrics) return this;
+    const output = new ScorePainter(this.resources);
+    await output.load({ ...request, showLyrics });
+    return output;
+  }
+
+  /** PPTX lays out synchronously through the existing jianpu request path. */
+  outputForLyricsSync(showLyrics: boolean): ScorePainter {
+    const request = this.committedRequest;
+    if (!request || (request.showLyrics !== false) === showLyrics) return this;
+    if (isStaffRequest(request)) throw new Error("五线谱输出需要异步排版");
+    const output = new ScorePainter(this.resources);
+    output.loadSync({ ...request, showLyrics });
+    return output;
   }
 
   /** 让未完成的请求作废，放掉持有的 DOM 引用。 */
@@ -246,6 +269,7 @@ export class ScorePainter {
     this.nodeMap = new WeakMap();
     this.index = ScoreIndex.empty();
     this.original = null;
+    this.committedRequest = null;
   }
 
   /** 简谱这一路（原样 / 展开档）：整份文档排好（不等资源，`Font` 同步量字），返回提交动作。 */
