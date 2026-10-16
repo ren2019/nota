@@ -126,6 +126,7 @@ export function mountLibrary(app: App, revealWorkspace: (mode?: "practice" | "ed
   }
 
   async function performSave(navigate:boolean):Promise<LibrarySaveResult> {
+    if(session.loading) {app.setStatus("正在打开曲谱，请稍候再保存。");return {status:'failed'};}
     if (!app.getText().trim() || !app.scoreDoc()?.songs.length) { app.setStatus("请先打开或创作一份曲谱。"); return {status:'failed'}; }
     const buttons=[saveButton,document.getElementById('nota-detail-save') as HTMLButtonElement | null].filter((button):button is HTMLButtonElement => !!button);
     buttons.forEach(button => {button.disabled=true;button.textContent='正在保存…';});
@@ -169,7 +170,7 @@ export function mountLibrary(app: App, revealWorkspace: (mode?: "practice" | "ed
     return inFlight;
   }
   function confirmReplace(closing=false):Promise<boolean> {
-    if(guard) return Promise.resolve(false);
+    if(guard || session.loading) return Promise.resolve(false);
     if(!session.dirty) return Promise.resolve(true);
     guard=(async () => {
       const outcome=await showUnsavedLibraryDialog(session.title,closing);

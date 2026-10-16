@@ -92,6 +92,7 @@ export class CurrentDocumentSession {
   private generation=0;
   private active=false;
   recovered=false;
+  loading=false;
   private listeners = new Set<() => void>();
   constructor(readonly app: App) {}
   subscribe(listener: () => void): () => void { this.listeners.add(listener); return () => this.listeners.delete(listener); }
@@ -151,23 +152,28 @@ export class CurrentDocumentSession {
   }
   async restoreDraft(context:LibraryDraftContext | undefined):Promise<void> {
     this.generation++; this.active=true; this.recovered=true;
-    this.current=context?.version === 1 ? context.current : null;
-    this.source=context?.source; this.importedTitle=context?.title;
-    this.baseline=context?.baseline ?? null;
-    const p=context?.presentation;
-    if(p) {
+    const valid=context?.version === 1 ? context : undefined;
+    const item=valid?.current;
+    this.current=item && typeof item.id === 'string' && typeof item.title === 'string' && Number.isFinite(item.revision) ? item : null;
+    this.source=valid?.source; this.importedTitle=typeof valid?.title === 'string' ? valid.title : undefined;
+    this.baseline=typeof valid?.baseline === 'string' ? valid.baseline : null;
+    const p=valid?.presentation;
+    if(p && ['original','expanded','staff','mixed'].includes(p.mode)) {
       await this.app.setViewMode(p.mode);
       if(p.render) this.app.restoreLayoutState(p.render);
-      else this.app.applyRenderSettings({fontSize:p.noteSize,paper:{jianpu:{paper:p.paper,orientation:p.orientation,margin:p.margin}}});
+      else if(Number.isFinite(p.noteSize) && p.noteSize >= 8 && p.noteSize <= 72) this.app.applyRenderSettings({fontSize:p.noteSize,paper:{jianpu:{paper:p.paper,orientation:p.orientation,margin:p.margin}}});
       await this.app.whenIdle();
     }
     this.app.exportSourceDescription=provenanceFooterSource(this.source);
     this.notify(); this.app.files._scheduleDraft();
   }
   async openLibrary(id: string): Promise<void> {
-    const {score, project} = await readLibraryScore(id);
+    if(this.loading) throw new Error('正在打开曲谱，请稍候。');
+    this.loading=true;
     const releaseDraft=this.app.suspendDraftWrites();
     try {
+    const {score, project} = await readLibraryScore(id);
+    this.generation++;
     this.app.playback.stop();
     if (project) {
       if (!(await this.app.openProject(project, `${score.title}.dolce`))) throw new Error('这份曲谱的原图项目暂时无法打开。');
@@ -183,11 +189,11 @@ export class CurrentDocumentSession {
     }
     await this.app.whenIdle();
     if (!this.app.scoreDoc()?.songs.length) throw new Error('这份曲谱暂时无法排版，请返回曲谱库检查原文件。');
-    this.generation++; this.active=true; this.recovered=false;
+    this.active=true; this.recovered=false;
     this.source = score.source; this.importedTitle = undefined;
     this.app.exportSourceDescription = provenanceFooterSource(score.source);
     this.acceptSaved(score); this.app.markClean();
     this.app.setStatus(`已从曲谱库打开「${score.title}」。`);
-    } finally {releaseDraft();}
+    } finally {this.loading=false; releaseDraft();}
   }
 }
