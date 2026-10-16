@@ -1,3 +1,4 @@
+import { notaMarkPaths } from "../nota/nota-mark";
 // Vector PPTX export — ports mp/layout/pptx.kt (POI) to hand-written OOXML.
 // Walks the page tree into shapes (text boxes / custGeom freeforms), assembles a
 // minimal valid .pptx deck, and zips with fflate. SMuFL glyphs become outline
@@ -47,6 +48,7 @@ interface GeomShape {
   kind: "geom";
   x: number; y: number; w: number; h: number;
   segs: PathSeg[]; // local, 0-based
+  round?: boolean;
   fillHex: string | null; strokeHex: string | null; strokeW: number;
 }
 type Shape = TextShape | GeomShape;
@@ -305,7 +307,7 @@ function geomXml(s: GeomShape, id: number): string {
   }
   const fill = s.fillHex ? `<a:solidFill><a:srgbClr val="${s.fillHex}"/></a:solidFill>` : `<a:noFill/>`;
   const ln = s.strokeHex
-    ? `<a:ln w="${EMU(s.strokeW)}"><a:solidFill><a:srgbClr val="${s.strokeHex}"/></a:solidFill></a:ln>`
+    ? `<a:ln w="${EMU(s.strokeW)}"${s.round ? ' cap="rnd"' : ""}><a:solidFill><a:srgbClr val="${s.strokeHex}"/></a:solidFill>${s.round ? "<a:round/>" : ""}</a:ln>`
     : `<a:ln><a:noFill/></a:ln>`;
   return `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="g${id}"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>` +
     `<p:spPr><a:xfrm><a:off x="${EMU(s.x)}" y="${EMU(s.y)}"/><a:ext cx="${W}" cy="${H}"/></a:xfrm>` +
@@ -435,6 +437,13 @@ export async function buildPptx(src: PptxSource, bgColor = 0xffffffff, context: 
       w: item.width, h: FOOTER_STYLE.size,
       text: item.text, align: item.align === "right" ? "r" : "l", size: FOOTER_STYLE.size,
       colorHex: FOOTER_STYLE.color.slice(1), bold: false, family: "Arial",
+    });
+    if (layout.mark) for (const path of notaMarkPaths(layout.mark.height)) shapes.push({
+      kind: "geom", x: layout.mark.x,
+      y: placement.baseline - (layout.rows - 1 - layout.mark.row) * FOOTER_STYLE.leading - layout.mark.height * 0.85,
+      w: layout.mark.width, h: layout.mark.height, segs: path.segs,
+      fillHex: path.fill ? FOOTER_STYLE.color.slice(1) : null,
+      strokeHex: path.strokeWidth ? FOOTER_STYLE.color.slice(1) : null, strokeW: path.strokeWidth, round: true,
     });
     return slideXml(shapes, bgColor);
   });

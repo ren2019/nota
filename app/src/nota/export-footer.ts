@@ -1,9 +1,10 @@
+import { NOTA_MARK_RATIO, notaMarkPaths } from "./nota-mark";
 import { measureGlyphText } from "../common/measure";
 /** Shared export-only branding. Never written into the score or its layout. */
 export const NOTA_NAME = "Nota";
 export const NOTA_SLOGAN = "A simple way to make sheet music.";
 export const FOOTER_BRAND = `Typeset with ${NOTA_NAME}`;
-export const FOOTER_STYLE = { size: 7.5, color: "#888888", margin: 24, bottom: 18, gap: 8, leading: 10, columnGap: 16 } as const;
+export const FOOTER_STYLE = { size: 7.5, color: "#888888", margin: 24, bottom: 18, gap: 8, leading: 10, columnGap: 16, markGap: 3 } as const;
 export interface FooterOptions {
   brand: boolean;
   date: boolean;
@@ -28,16 +29,16 @@ export function writeFooterOptions(options: FooterOptions): void {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(options)); } catch { /* current export still works */ }
 }
 
-export interface FooterContext { options: FooterOptions; date: string; source?: string }
+export interface FooterContext { options: FooterOptions; date: string; source?: string; /* Future user credit belongs in the information row. */ }
 export function exportFooterContext(): FooterContext {
   return { options: readFooterOptions(), date: localExportDate() };
 }
 
-export function footerText(context: FooterContext, index: number, count: number, continuous = false): { left: string; right: string } {
+export function footerText(context: FooterContext, index: number, count: number, continuous = false): { left: string; right: string; brand: string } {
   return {
     left: context.source?.trim() ?? "",
-    right: [context.options.brand ? `${FOOTER_BRAND}\n${NOTA_SLOGAN}` : "",
-      [context.options.date ? context.date : "", context.options.pageNumbers && !continuous && count > 1 ? `${index + 1} / ${count}` : ""].filter(Boolean).join(" · ")].filter(Boolean).join("\n"),
+    right: [context.options.date ? context.date : "", context.options.pageNumbers && !continuous && count > 1 ? `${index + 1} / ${count}` : ""].filter(Boolean).join(" · "),
+    brand: context.options.brand ? `${FOOTER_BRAND} · ${NOTA_SLOGAN}` : "",
   };
 }
 
@@ -53,45 +54,60 @@ function footerCapacity(height: number) {
   return { bottom, gap, rows };
 }
 
-/** Physical-point layout reused by every page exporter. Fixed page height
- * bounds text, while a continuous image keeps the complete source. */
+export interface FooterMark { x: number; width: number; height: number; row: number }
+
+/** One shared two-tier layout: score information first, then the complete
+ * left-aligned brand group. Fixed pages abbreviate; long images retain text. */
 export function layoutFooter(context: FooterContext, index: number, count: number, continuous: boolean, width: number, height: number,
-  measure: (text: string) => number = text => measureGlyphText(text, "Arial, sans-serif", FOOTER_STYLE.size).width): { labels: FooterLabel[]; rows: number } {
+  measure: (text: string) => number = text => measureGlyphText(text, "Arial, sans-serif", FOOTER_STYLE.size).width): { labels: FooterLabel[]; rows: number; mark?: FooterMark } {
   const text = footerText(context, index, count, continuous);
   const margin = Math.min(FOOTER_STYLE.margin, width / 8);
   const inner = Math.max(0, width - 2 * margin);
-  const both = !!(text.left && text.right);
-  const column = both ? (inner - Math.min(FOOTER_STYLE.columnGap, inner / 10)) / 2 : inner;
   const limit = continuous ? Infinity : footerCapacity(height).rows;
-  function wrap(value: string): string[] {
-    if (!value || limit === 0 || column < measure("…")) return [];
-    const lines = value.split(/\r?\n/).flatMap(paragraph => {
+  function wrap(value: string, available: number): string[] {
+    if (!value || available < measure("…")) return [];
+    return value.split(/\r?\n/).flatMap(paragraph => {
       const out: string[] = [];
       let line = "";
       for (const ch of paragraph) {
-        if (line && measure(line + ch) > column) { out.push(line.trimEnd()); line = ""; }
-        // Extremely narrow paper cannot fit this glyph at the fixed font size.
-        // Use a visible omission marker instead of overflowing its column.
-        line += measure(ch) <= column ? ch : "…";
+        if (line && measure(line + ch) > available) { out.push(line.trimEnd()); line = ""; }
+        line += measure(ch) <= available ? ch : "…";
       }
       if (line.trim()) out.push(line.trimEnd());
       return out;
     });
-    if (lines.length <= limit) return lines;
-    const kept = lines.slice(0, limit);
-    let tail = [...kept[kept.length - 1]!];
-    while (tail.length && measure(tail.join("") + "…") > column) tail.pop();
+  }
+  function fit(lines: string[], available: number, count: number): string[] {
+    if (count <= 0) return [];
+    if (lines.length <= count) return lines;
+    const kept = lines.slice(0, count);
+    const tail = [...kept[kept.length - 1]!];
+    while (tail.length && measure(tail.join("") + "…") > available) tail.pop();
     kept[kept.length - 1] = tail.join("").trimEnd() + "…";
     return kept;
   }
-  const left = wrap(text.left), right = wrap(text.right);
-  const rows = Math.max(left.length, right.length);
+  const both = !!(text.left && text.right);
+  const gap = both ? Math.min(FOOTER_STYLE.columnGap, inner / 10) : 0;
+  // Reserve only the actual date/page label width on normal paper. Narrow
+  // paper shares the line and wraps instead of starving the source column.
+  const rightWidth = text.right ? Math.min(measure(text.right), both ? inner / 2 : inner) : 0;
+  const leftWidth = Math.max(0, inner - (text.right ? rightWidth + gap : 0));
+  const rawLeft = wrap(text.left, leftWidth), rawRight = wrap(text.right, rightWidth);
+  const hasInfo = rawLeft.length > 0 || rawRight.length > 0;
+  const markWidth = FOOTER_STYLE.size * NOTA_MARK_RATIO;
+  const brandX = margin + markWidth + FOOTER_STYLE.markGap;
+  const brandWidth = Math.max(0, inner - markWidth - FOOTER_STYLE.markGap);
+  const brand = fit(wrap(text.brand, brandWidth), brandWidth, Math.max(0, limit - (hasInfo ? 1 : 0)));
+  const infoLimit = limit - brand.length;
+  const left = fit(rawLeft, leftWidth, infoLimit), right = fit(rawRight, rightWidth, infoLimit);
+  const infoRows = Math.max(left.length, right.length);
   const labels: FooterLabel[] = [];
-  for (const [lines, align] of [[left, "left"], [right, "right"]] as const) for (const [i, value] of lines.entries()) labels.push({
-    text: value, align, x: align === "left" ? margin : width - margin - column,
-    width: column, row: rows - lines.length + i,
-  });
-  return { labels, rows };
+  for (const [lines, align, x, available] of [[left, "left", margin, leftWidth], [right, "right", width - margin - rightWidth, rightWidth]] as const)
+    for (const [row, value] of lines.entries()) labels.push({ text: value, align, x, width: available, row });
+  for (const [index, value] of brand.entries()) labels.push({ text: value, align: "left", x: brandX, width: brandWidth, row: infoRows + index });
+  return { labels, rows: infoRows + brand.length,
+    ...(brand.length ? { mark: { x: margin, row: infoRows, width: markWidth, height: FOOTER_STYLE.size } } : {}),
+  };
 }
 
 /** Fit the export as a whole without changing notes or pagination. The shared
@@ -148,6 +164,25 @@ export function withExportFooter(source: SVGSVGElement, size: { w: number; h: nu
     label.setAttribute("text-anchor", item.align === "right" ? "end" : "start");
     label.textContent = item.text;
     footer.append(label);
+  }
+  if (layout.mark) {
+    const mark = layout.mark;
+    const group = document.createElementNS(ns, "g");
+    group.setAttribute("class", "nota-export-mark");
+    group.setAttribute("transform", `translate(${mark.x * units} ${(placement.baseline - (layout.rows - 1 - mark.row) * FOOTER_STYLE.leading - mark.height * 0.85) * units}) scale(${units})`);
+    for (const shape of notaMarkPaths(mark.height)) {
+      const path = document.createElementNS(ns, "path");
+      path.setAttribute("d", shape.segs.map(segment => `${segment.op}${segment.pts.join(" ")}`).join(" "));
+      path.setAttribute("fill", shape.fill ? FOOTER_STYLE.color : "none");
+      if (shape.strokeWidth) {
+        path.setAttribute("stroke", FOOTER_STYLE.color);
+        path.setAttribute("stroke-width", String(shape.strokeWidth));
+        path.setAttribute("stroke-linecap", "round");
+        path.setAttribute("stroke-linejoin", "round");
+      }
+      group.append(path);
+    }
+    footer.append(group);
   }
   svg.append(footer);
   return svg;

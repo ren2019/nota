@@ -7,13 +7,14 @@ function equal(actual: unknown, expected: unknown) {
   if (JSON.stringify(actual) !== JSON.stringify(expected)) throw new Error(`Footer check: ${JSON.stringify(actual)} != ${JSON.stringify(expected)}`);
 }
 const context = { options: { ...DEFAULT_FOOTER }, date: "2026-10-16" };
-equal(footerText(context, 0, 1), { left: "", right: "Typeset with Nota\nA simple way to make sheet music.\n2026-10-16" });
-equal(footerText(context, 1, 2), { left: "", right: "Typeset with Nota\nA simple way to make sheet music.\n2026-10-16 · 2 / 2" });
-equal(footerText(context, 0, 3, true).right, "Typeset with Nota\nA simple way to make sheet music.\n2026-10-16");
+equal(footerText(context, 0, 1), { left: "", right: "2026-10-16", brand: "Typeset with Nota · A simple way to make sheet music." });
+equal(footerText(context, 1, 2), { left: "", right: "2026-10-16 · 2 / 2", brand: "Typeset with Nota · A simple way to make sheet music." });
+equal(footerText(context, 0, 3, true).right, "2026-10-16");
 for (const brand of [false, true]) for (const date of [false, true]) for (const pageNumbers of [false, true]) {
   const result = footerText({ ...context, options: { brand, date, pageNumbers } }, 0, 2);
   equal(result.left, "");
-  equal(result.right, [brand ? "Typeset with Nota\nA simple way to make sheet music." : "", [date ? "2026-10-16" : "", pageNumbers ? "1 / 2" : ""].filter(Boolean).join(" · ")].filter(Boolean).join("\n"));
+  equal(result.right, [date ? "2026-10-16" : "", pageNumbers ? "1 / 2" : ""].filter(Boolean).join(" · "));
+  equal(result.brand, brand ? "Typeset with Nota · A simple way to make sheet music." : "");
 }
 equal(footerPlacement(842, 800, false, true), { height: 842, baseline: 824, scale: 1 });
 const full = footerPlacement(842, 842, false, true);
@@ -58,7 +59,7 @@ const boundedPlacement = footerPlacement(842, 700, false, true, bounded.rows);
 if (boundedPlacement.scale <= 0 || bounded.rows > 20) throw new Error("Extreme source must have a positive music scale and bounded footer height");
 if (!bounded.labels.some(l => l.align === "left" && l.text.endsWith("…"))) throw new Error("Truncated source must be marked with an ellipsis");
 const unbounded = layoutFooter({ ...context, source: hugeSource }, 0, 2, true, 595, 842, s => [...s].length * 7.5);
-equal(unbounded.labels.filter(l => l.align === "left").map(l => l.text).join(""), hugeSource);
+equal(unbounded.labels.filter(l => l.align === "left" && l.row < unbounded.mark!.row).map(l => l.text).join(""), hugeSource);
 equal(footerPlacement(842, 700, true, true, unbounded.rows).scale, 1);
 for (const width of [5, 48, 96, 595]) for (const height of [5, 20, 100, 842]) {
   const small = layoutFooter({ ...context, source: hugeSource }, 0, 2, false, width, height, s => [...s].length * 7.5);
@@ -71,4 +72,30 @@ for (const width of [5, 48, 96, 595]) for (const height of [5, 20, 100, 842]) {
 }
 const boundedBrandOff = layoutFooter({ ...context, source: hugeSource, options: { brand: false, date: false, pageNumbers: false } }, 0, 1, false, 595, 842, s => [...s].length * 7.5);
 if (!boundedBrandOff.labels.length || !boundedBrandOff.labels[boundedBrandOff.labels.length - 1]!.text.endsWith("…")) throw new Error("Source stays visible and bounded with every optional brand item off");
-if (!bounded.labels.filter(l => l.align === "right").map(l => l.text).join("\n").includes("A simple way to make sheet music.")) throw new Error("Normal paper must retain the complete official slogan");
+if (!bounded.labels.filter(l => l.row >= bounded.mark!.row).map(l => l.text).join("\n").includes("A simple way to make sheet music.")) throw new Error("Normal paper must retain the complete official slogan");
+
+const twoRow = layoutFooter({ ...context, source: "公开谱集" }, 0, 2, false, 595, 842, s => [...s].length * 7.5);
+equal(twoRow.rows, 2);
+equal(twoRow.labels.map(l => [l.text, l.row, l.align]), [["公开谱集", 0, "left"], ["2026-10-16 · 1 / 2", 0, "right"], ["Typeset with Nota · A simple way to make sheet music.", 1, "left"]]);
+if (!twoRow.mark || twoRow.mark.row !== 1 || twoRow.mark.x !== twoRow.labels[0]!.x) throw new Error("Logo begins the second row aligned to the source edge");
+const empty = layoutFooter({ ...context, options: { brand: false, date: false, pageNumbers: false } }, 0, 1, false, 595, 842);
+equal(empty.rows, 0);
+equal(empty.mark, undefined);
+
+const brandOnly = layoutFooter({ ...context, options: { brand: true, date: false, pageNumbers: false } }, 0, 1, false, 595, 842, s => [...s].length * 7.5);
+equal(brandOnly.rows, 1);
+equal(brandOnly.mark?.row, 0);
+for (const brand of [false, true]) for (const date of [false, true]) for (const pageNumbers of [false, true]) for (const hasSource of [false, true]) {
+  const layout = layoutFooter({ ...context, source: hasSource ? "真实来源" : "", options: { brand, date, pageNumbers } }, 0, 2, false, 595, 842, s => [...s].length * 7.5);
+  const information = hasSource || date || pageNumbers;
+  equal(layout.rows, Number(information) + Number(brand));
+  equal(!!layout.mark, brand);
+  if (layout.mark) equal(layout.mark.row, Number(information));
+}
+for (const width of [5, 48, 96, 595]) for (const height of [5, 20, 100, 842]) {
+  const layout = layoutFooter({ ...context, source: hugeSource }, 0, 2, false, width, height, s => [...s].length * 7.5);
+  if (!layout.mark) continue;
+  const placement = footerPlacement(height, height, false, true, layout.rows);
+  const top = placement.baseline - (layout.rows - 1 - layout.mark.row) * 10 - layout.mark.height * 0.85;
+  if (layout.mark.x < 0 || top < 0 || layout.mark.x + layout.mark.width > width || top + layout.mark.height > height) throw new Error("Small-page logo must remain inside the output page");
+}
