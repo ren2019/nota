@@ -12,7 +12,7 @@ import { describeLosses, planSave } from "../model/capability";
 import { packProject, PROJECT_EXT, type ProjectSnapshot } from "./omrproject";
 import { clearLastFile, loadLastFile, saveLastFile } from "./settings";
 import { targetSpec, type ConvertTarget } from "../model/convert";
-import { showConfirmDialog } from "./dialogs";
+import { showConfirmDialog, openFilePicker } from "./dialogs";
 import { t } from "../i18n";
 import { targetLabel } from "../i18n/labels";
 import type { ScoreDoc } from "../model/doc";
@@ -29,6 +29,7 @@ export interface FileHost {
   draftContext?: (() => Draft["nota"]) | null;
   setStatus(s: string): void;
   importBytes(bytes: Uint8Array, name: string): void;
+  openBytes(bytes: Uint8Array, name: string, interactive?:boolean):Promise<boolean>;
   openProject(bytes: Uint8Array, name: string, opts?: { draft?: boolean }): Promise<boolean>;
   adoptText(format: DocFormatId, text: string, filePath: string | null): void;
   loadBookSheet(): Promise<void>;
@@ -58,9 +59,7 @@ export class FileSession {
     try {
       const { readFile } = await import("@tauri-apps/plugin-fs");
       const bytes = await readFile(path);
-      if (isProjectFile(path)) {
-        if (!(await this.host.openProject(bytes, path))) throw new Error("bad project");
-      } else this.host.importBytes(bytes, path);
+      if(!(await this.host.openBytes(bytes,path))) throw new Error("bad document");
       this.host.filePath = path;
       void this.host.loadBookSheet();
       return true;
@@ -89,10 +88,9 @@ export class FileSession {
       });
       if (typeof sel !== "string") return false;
       const bytes = await readFile(sel);
-      this.host.importBytes(bytes, sel);
+      if(!(await this.host.openBytes(bytes,sel,true))) return false;
       this.host.filePath = sel;
       this.rememberLastFile(sel);
-      void this.host.onDocumentOpened();
       return true;
     }
 
@@ -107,20 +105,20 @@ export class FileSession {
       };
       input.type = "file";
       input.accept = acceptAttr(DOC_EXT);
+      input.addEventListener("cancel",() => finish(false),{once:true});
       input.onchange = async () => {
         changeStarted = true;
         const file = input.files?.[0];
         if (!file) { finish(false); return; }
         const buf = new Uint8Array(await file.arrayBuffer());
-        this.host.importBytes(buf, file.name);
+        if(!(await this.host.openBytes(buf,file.name,true))) {finish(false);return;}
         this.host.filePath = file.name;
         finish(true);
-        void this.host.onDocumentOpened();
       };
       window.addEventListener("focus", () => setTimeout(() => {
         if (!changeStarted) finish(false);
       }, 500), { once: true });
-      input.click();
+      openFilePicker(input,() => finish(false));
     });
   }
 

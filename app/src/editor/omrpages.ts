@@ -128,7 +128,7 @@ function pickCrop(f: RecogInput): Promise<{ x: number; y: number; w: number; h: 
  */
 export function showPagesDialog(
   inputs: readonly RecogInput[], apply: (files: RecogInput[]) => void,
-  opts: { okLabel?: string; hint?: string; onCancel?: () => void } = {},
+  opts: { okLabel?: string; hint?: string; onCancel?: () => void; header?:HTMLElement; onListChange?:(list:readonly RecogInput[]) => void } = {},
 ): void {
   let list = [...inputs];
   /** 对话框关了：还在编码的旋转 / 裁剪回来不再重画（不再建缩略图的 ObjectURL） */
@@ -147,6 +147,7 @@ export function showPagesDialog(
   const render = (): void => {
     for (const u of urls.splice(0)) URL.revokeObjectURL(u);
     if (closed) return;
+    opts.onListChange?.(list);
     table.replaceChildren();
     list.forEach((f, i) => {
       const row = document.createElement("div");
@@ -277,6 +278,7 @@ export function showPagesDialog(
   addBtn.type = "button";
   addBtn.textContent = t("pages.add");
   addBtn.addEventListener("click", () => add.click());
+  if(opts.header) body.append(opts.header);
   body.append(table, addBtn, add, hint);
   showFormDialog(t("pages.title"), body, () => {
     closed = true;
