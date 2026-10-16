@@ -1,5 +1,5 @@
 /* Only the reading route changes. Original Dolce toolbar and print layout keep their own geometry. */
-#app[data-nota-screen="detail"][data-nota-mode="practice"] #nota-practice-controls { background:#fdfef9; color:#254e38; border-top:1px solid #d4ddce; padding:8px max(12px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left)); }
+#app[data-nota-screen="detail"][data-nota-mode="practice"] #nota-practice-controls { background:#fdfef9; color:#254e38; border-top:1px solid #d4ddce; padding:8px max(12px,env(safe-area-inset-right)) calc(var(--nota-bottom-gap,8px) + env(safe-area-inset-bottom,0px)) max(12px,env(safe-area-inset-left)); }
 .nota-play-progress, .nota-play-actions { display:flex; align-items:center; gap:8px; max-width:900px; margin:auto; }
 .nota-play-progress #play-progress { flex:1; width:0; min-width:0; height:32px; background:transparent; accent-color:#285e42; color-scheme:light; }
 .nota-play-progress #play-progress::-webkit-slider-runnable-track { height:4px; border-radius:2px; background:linear-gradient(to right,#285e42 var(--progress),#a1b0a3 var(--progress)); }

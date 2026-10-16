@@ -31,10 +31,14 @@
 .nota-mode-tabs { display:flex; gap:4px; background:#eaf0e6; padding:4px; border-radius:12px; max-width:1060px; margin:auto; }
 .nota-mode-tabs button { flex:1; min-width:0; font-size:15px; }
 .nota-mode-tabs .selected { background:white; color:#245b40; font-weight:700; box-shadow:0 1px 3px #18322512; }
-#app[data-nota-screen="detail"][data-nota-mode="edit"] #nota-edit-dock { display:flex; justify-content:center; flex:0 0 auto; background:#fdfef9; color:#31533d; padding:6px 10px max(6px,env(safe-area-inset-bottom)); border-top:1px solid #d4ddce; }
+#app[data-nota-screen="detail"][data-nota-mode="edit"] #nota-edit-dock { display:flex; justify-content:center; flex:0 0 auto; background:#fdfef9; color:#31533d; padding:6px max(10px,env(safe-area-inset-right,0px)) calc(var(--nota-bottom-gap,6px) + env(safe-area-inset-bottom,0px)) max(10px,env(safe-area-inset-left,0px)); border-top:1px solid #d4ddce; }
 #nota-edit-dock button { flex:1; max-width:180px; font-size:23px; line-height:1.2; }
 #nota-edit-dock button span { display:block; font-size:12px; margin-top:3px; }
 #app[data-nota-screen="detail"][data-nota-mode="practice"] #nota-practice-controls:not(:empty) { display:block; flex:0 0 auto; }
+/* Safe-area avoidance does not replace ordinary spacing above the home gesture. */
+@media(max-width:680px), (pointer:coarse) {
+  #app { --nota-bottom-gap:16px; }
+}
 @media(max-width:430px) {
   #app[data-nota-screen="detail"] #nota-document-head { padding-inline:10px; }
   .nota-document-bar {gap:6px;}

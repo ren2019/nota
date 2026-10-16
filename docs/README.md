@@ -12,6 +12,7 @@
 | [需求与边界](brief.md) | 两种转换语义、实例共享与范围限制 |
 | [领域术语](../GLOSSARY.md) / [单实例 ADR](adr/0001-self-hosted-shared-instance.md) | 统一术语与架构决定 |
 | [初始曲谱来源](library-seed.md) | 曲谱版本、来源和种子导入边界 |
+| [iPhone 底栏安全区与留白](iphone-safe-area.md) | 官方依据、手机底栏微调及浏览器验证边界 |
 
 ## 验收证据
 
