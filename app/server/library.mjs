@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, writeFile, rename } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile, rename, unlink } from "node:fs/promises";
 import { randomUUID, createHash } from "node:crypto";
 import { isIP } from "node:net";
 import path from "node:path";
@@ -45,10 +45,13 @@ export function libraryMiddleware(directory = defaultDirectory) {
         try { names = await readdir(directory); }
         catch (e) { if (e.code === "ENOENT") return send(200, []); throw e; }
         const records = await Promise.all(names.filter((name) => ID.test(name.replace(/\.json$/, "")) && name.endsWith(".json"))
-          .map(async (name) => summary(JSON.parse(await readFile(path.join(directory, name), "utf8")))));
-        return send(200, records.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
+          .map(async (name) => {
+            try { return summary(JSON.parse(await readFile(path.join(directory, name), "utf8"))); }
+            catch (error) { if (error.code === "ENOENT") return null; throw error; }
+          }));
+        return send(200, records.filter(Boolean).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
       }
-      if ((req.method !== "POST" || id) && (req.method !== "PUT" || !id)) throw fail(405, "不支持此操作。");
+      if ((req.method !== "POST" || id) && (req.method !== "PUT" || !id) && (req.method !== "DELETE" || !id)) throw fail(405, "不支持此操作。");
       if (!req.headers["content-type"]?.startsWith("application/json")) throw fail(415, "保存内容格式不正确。");
       if (req.headers.origin && new URL(req.headers.origin).host !== req.headers.host) throw fail(403, "请从 Nota 页面保存曲谱。");
       let size = 0;
@@ -61,6 +64,16 @@ export function libraryMiddleware(directory = defaultDirectory) {
       let data;
       try { data = JSON.parse(Buffer.concat(chunks).toString("utf8")); }
       catch { throw fail(400, "保存内容格式不正确。"); }
+      if (req.method === "DELETE") {
+        if (!Number.isSafeInteger(data?.revision) || data.revision < 1) throw fail(400, "请提供有效的曲谱修订版本。");
+        const deleted = await serialize(async () => {
+          const previous = await load(id);
+          if (data.revision !== previous.revision) throw fail(409, "家人刚刚更新了这份曲谱，尚未删除。请重新打开后确认。");
+          await unlink(file(id));
+          return { id, revision: previous.revision, deleted: true };
+        });
+        return send(200, deleted);
+      }
       if (!data || typeof data.title !== "string" || !data.title.trim() || data.title.trim().length > 120 ||
           !FORMATS.has(data.format) || typeof data.text !== "string" || !data.text.trim() ||
           (data.project !== undefined && (typeof data.project !== "string" || !/^[A-Za-z0-9+/]*={0,2}$/.test(data.project)))) {

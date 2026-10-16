@@ -4,7 +4,7 @@ import { showExportDialog } from '../editor/export';
 import './detail.css';
 
 export type DetailMode = 'practice' | 'edit';
-export type DocumentScreen = 'library' | 'detail' | 'editor';
+export type DocumentScreen = 'library' | 'detail' | 'editor' | 'search';
 let draftSequence = 0;
 // Navigation identity only; LAN HTTP and older PWA browsers need no secure-context API.
 const newDraftKey = () => `draft-${Date.now().toString(36)}-${++draftSequence}`;
@@ -45,7 +45,7 @@ export function mountDocumentDetail(app: App, session: CurrentDocumentSession, r
   const key = () => session.current?.id ?? draft;
   let visibleKey = key();
   const route = (): Route => ({nota:true,screen,mode,id:session.current?.id ?? null,draft});
-  const rememberPosition = () => { if (screen !== 'library') positions.set(visibleKey,scorePane.scrollTop); };
+  const rememberPosition = () => { if (screen === 'detail' || screen === 'editor') positions.set(visibleKey,scorePane.scrollTop); };
   const urlOf = (r:Route) => {
     const url = new URL(location.href);
     for (const param of ['song','mode','screen']) url.searchParams.delete(param);
@@ -68,7 +68,7 @@ export function mountDocumentDetail(app: App, session: CurrentDocumentSession, r
   }
   function display(next:DocumentScreen, nextMode=mode) {
     rememberPosition();
-    if (nextMode === 'edit' || next === 'library') app.playback.stop();
+    if (nextMode === 'edit' || next === 'library' || next === 'search') app.playback.stop();
     screen=next; mode=nextMode; visibleKey=key();
     delete root.dataset.notaTool;
     root.dataset.notaScreen=screen; root.dataset.notaMode=mode;
@@ -88,10 +88,10 @@ export function mountDocumentDetail(app: App, session: CurrentDocumentSession, r
     if(navigating) return;
     navigating=true;
     try {
-      if (r.screen !== 'library' && r.id && r.id !== session.current?.id) {
+      if ((r.screen === 'detail' || r.screen === 'editor') && r.id && r.id !== session.current?.id) {
         if (!(await app.confirmReplace())) { history.pushState(route(),'',urlOf(route())); return; }
         await session.openLibrary(r.id);
-      } else if (r.screen !== 'library' && !r.id && r.draft !== draft) throw new Error('这份临时稿已无法恢复，请从曲谱库重新打开。');
+      } else if ((r.screen === 'detail' || r.screen === 'editor') && !r.id && r.draft !== draft) throw new Error('这份临时稿已无法恢复，请从曲谱库重新打开。');
       display(r.screen,r.mode);
       history.replaceState(route(),'',urlOf(route()));
     } catch(e) {
@@ -131,10 +131,12 @@ export function mountDocumentDetail(app: App, session: CurrentDocumentSession, r
       navigationListeners.add(listener); return () => navigationListeners.delete(listener);
     },
     open(nextMode:DetailMode='edit') { if(!session.current) draft=newDraftKey(); navigate('detail',nextMode); },
-    home(){navigate('library');},
+    home(replace=false){navigate('library',mode,replace);},
+    showSearch(){navigate('search');},
     showEditor(){navigate('editor','edit');},
     showDetail(nextMode:DetailMode=mode){navigate('detail',nextMode);},
     async restoreInitialRoute(){
+      if(initialScreen === 'search') {navigate('search',mode,true);return;}
       if(initialScreen === 'detail' || initialScreen === 'editor') {
         if(!initialId) {
           const feedback=query('start-feedback'); feedback.textContent='这份临时稿已无法恢复，请从曲谱库重新打开。'; feedback.hidden=false;

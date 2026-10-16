@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { xmlSource } from "./xml-reference.mjs";
 import { structuredRuntime } from "./structured-runtime.mjs";
-import { prepareSource, permittedSource } from "./score-import.mjs";
+import { prepareSource, permittedSource, createSourceSearch } from "./score-import.mjs";
 const note = (step, octave, duration, extra = "") =>
   `<note><pitch><step>${step}</step><octave>${octave}</octave></pitch><duration>${duration}</duration><type>quarter</type>${extra}</note>`;
 const xml = `<?xml version="1.0"?><score-partwise version="4.0"><work><work-title>test</work-title></work><part-list><score-part id="P1"><part-name>Melody</part-name></score-part></part-list><part id="P1"><measure number="1"><attributes><divisions>4</divisions><key><fifths>0</fifths></key><time><beats>3</beats><beat-type>4</beat-type></time></attributes>${note("C", 5, 4, '<notations><slur type="start" number="1"/></notations>')}${note("C", 5, 4)}${note("D", 5, 4, '<notations><slur type="stop" number="1"/></notations>')}<barline location="right"><repeat direction="backward"/></barline></measure></part></score-partwise>`;
@@ -83,4 +83,33 @@ test("implicit pickup still exempts its matching final short measure",async()=>{
  const source=xmlSource(pickup);
  const candidate=api.prepareStructuredScore({text:source.xml,format:'musicxml',reference:source.reference});
  assert.equal(candidate.measures,3);
+});
+
+
+test("Chinese composer queries use exactly the same bounded holdings as English",async()=>{
+ const paths=["scores/Beethoven,_Ludwig_van/Op.48/1_Bitten/a.mxl","scores/Chopin,_Frédéric/Op.74/1_Życzenie/b.mxl","scores/Schubert,_Franz/Op.98/Wiegenlied/c.mxl","scores/Brahms,_Johannes/Op.49/Wiegenlied/d.mxl"];
+ const search=createSourceSearch(async()=>new Response(JSON.stringify({tree:paths.map(path=>({path,type:"blob"}))})));
+ for(const [zh,en] of [["贝多芬","Beethoven"],["肖邦","Chopin"]]){
+  const chinese=await search(zh),english=await search(en);
+  assert.deepEqual(chinese.map(i=>i.url),english.map(i=>i.url));
+  assert.ok(chinese.length>0);
+ }
+ const lullabies=await search("摇篮曲");
+ assert.equal(lullabies.filter(i=>i.title.includes("Wiegenlied")).length,2,"Keep distinct composers and editions");
+ assert.ok(lullabies.every(i=>!i.edition.includes("检查单旋律")),"Search results cannot claim an unread part was validated");
+});
+
+test("source index remains bounded and a failed/truncated index can retry",async()=>{
+ let attempt=0;
+ const search=createSourceSearch(async()=>{
+  attempt++;
+  if(attempt===1) return new Response(JSON.stringify({truncated:true,tree:[]}));
+  return new Response(JSON.stringify({tree:Array.from({length:25},(_,i)=>({type:"blob",path:`scores/Beethoven,_Ludwig_van/Collection/Song_${i}/score.mxl`}))}));
+ });
+ await assert.rejects(search("贝多芬"),/索引不完整/);
+ assert.equal((await search("Beethoven")).length,20);
+ assert.equal((await search("贝多芬")).length,20);
+ assert.equal(attempt,2,"Retry index is cached after a successful complete response");
+ const empty=createSourceSearch(async()=>new Response(JSON.stringify({tree:[]})));
+ assert.deepEqual(await empty("肖邦"),await empty("Chopin"),"Same holdings may validly have no works for either alias");
 });

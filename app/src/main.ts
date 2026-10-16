@@ -20,6 +20,8 @@ import { setupCompareSelect } from "./editor/comparemode";
 import { mountPracticePanel } from "./nota/panel";
 import { PRACTICE_SAMPLE } from "./nota/sample";
 import { mountLibrary } from "./nota/library";
+import { mountSourceImport } from "./nota/source-import";
+import { mountLibraryManagement } from "./nota/library-management";
 import { mountTuning } from "./nota/tuning-dialog";
 import { mountPracticeControls } from "./nota/practice-controls";
 import { CurrentDocumentSession } from "./nota/document-session";
@@ -137,9 +139,11 @@ async function boot() {
   const revealWorkspace = (mode: DetailMode = "edit") => detail.open(mode);
   const library = mountLibrary(app, revealWorkspace, session, () => { if(detail.screen !== "library") detail.showDetail("practice"); });
   detail = mountDocumentDetail(app, session, () => { void library.refresh(); });
+  mountSourceImport(library.adoptCandidate, detail);
   mountNotaExport(app);
   mountEditorPage(app, session, detail);
   mountTuning(app, session, detail);
+  mountLibraryManagement(app, session, detail, library.refresh);
   // Extensions receive the same App/session/shell; no second document is created.
   app.saveToLibrary = async () => { await library.save(); };
   app.libraryDirty = () => session.dirty;
@@ -319,7 +323,7 @@ async function boot() {
 
   // paging / zoom keys
   window.addEventListener("keydown", (e) => {
-    if (detail.screen === "library") return;
+    if (detail.screen === "library" || detail.screen === "search") return;
     const mod = e.ctrlKey || e.metaKey;
     if (mod && (e.key === "=" || e.key === "+")) { e.preventDefault(); app.zoomBy(1.2); updateZoom(); }
     else if (mod && e.key === "-") { e.preventDefault(); app.zoomBy(1 / 1.2); updateZoom(); }
