@@ -94,7 +94,9 @@ export class CurrentDocumentSession {
     return {mode:this.app.viewMode, noteSize:this.app.fontSize, paper:page.paper ?? 'A4', orientation:page.orientation ?? 'portrait', margin:Array.isArray(page.margin) ? page.margin : null,render:this.app.captureLayoutState()};
   }
   private fingerprint(): string {
-    return fingerprint([this.app.docFormat,this.app.getText(),this.app.omr.snapshot(),this.presentation(),sourceIdentity(this.source)]);
+    const project=this.app.omr.snapshot();
+    const content=project ? {kind:project.kind,docFormat:project.docFormat,text:project.text,emitted:project.emitted,sources:project.sources,jianpu:project.jianpu} : null;
+    return fingerprint([this.app.docFormat,this.app.getText(),content,this.presentation(),sourceIdentity(this.source)]);
   }
   get dirty(): boolean { return this.active && (this.baseline === null || this.fingerprint() !== this.baseline); }
   capture():DocumentSnapshot {
