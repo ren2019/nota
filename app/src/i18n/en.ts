@@ -2,6 +2,17 @@
 import type { MsgKey } from "./zh";
 
 export const en: Record<MsgKey, string> = {
+  "settings.footer.title": "Export footer",
+  "settings.footer.brand": "Show brand credit",
+  "settings.footer.date": "Show export date",
+  "settings.footer.pageNumbers": "Show page numbers (multiple pages only)",
+  "settings.footer.save": "Save settings",
+  "practice.size.label": "Number size",
+  "practice.size.aria": "Practice score number size",
+  "practice.size.standard": "Standard",
+  "practice.size.large": "Large",
+  "practice.size.extraLarge": "Extra large",
+  "practice.size.custom": "Current size ({size} pt)",
   "settings.tab.jianpu": "Jianpu output",
   "settings.jianpu.hint": "Applies immediately on this device. Source and playback are unchanged; required naturals are always retained.",
   "settings.jianpu.explicit": "Mark every altered note (default) · 1 ♭3 5 ♭3",
