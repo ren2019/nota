@@ -145,6 +145,7 @@ async function boot() {
   app.libraryDirty = () => session.dirty;
   app.beforeReplace = library.confirmReplace;
   app.draftContext = () => session.draftContext();
+  app.documentStateChanged = () => session.notify();
   const showStartScreen = () => detail.home();
   const openStarter = async (text: string, name: string) => {
     if (!(await app.confirmReplace())) return;
