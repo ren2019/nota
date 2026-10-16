@@ -18,6 +18,7 @@ import { setupCompareSelect } from "./editor/comparemode";
 import { mountPracticePanel } from "./nota/panel";
 import { PRACTICE_SAMPLE } from "./nota/sample";
 import { mountLibrary } from "./nota/library";
+import { mountLibraryManagement } from "./nota/library-management";
 import { mountTuning } from "./nota/tuning-dialog";
 import { mountPracticeControls } from "./nota/practice-controls";
 import { CurrentDocumentSession } from "./nota/document-session";
@@ -138,6 +139,7 @@ async function boot() {
   mountNotaExport(app);
   mountEditorPage(app, session, detail);
   mountTuning(app, session, detail);
+  mountLibraryManagement(app, session, detail, library.refresh);
   // Extensions receive the same App/session/shell; no second document is created.
   app.saveToLibrary = async () => { await library.save(); };
   app.libraryDirty = () => session.dirty;
