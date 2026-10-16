@@ -842,13 +842,13 @@ export class App implements OmrHost, PlaybackHost, FormatHost, FormatSwitchHost,
         const f = JpwFile.fromString(this.getText());
         const doc = this.jpwDoc;
         if (!f || !doc) return null;
-        req = { view: this.layoutMode, doc, style: this.styleOf(this.layoutMode), breakDesc: f.getSection(LayoutSection)?.desc ?? null };
+        req = { view: this.layoutMode, doc, style: this.styleOf(this.layoutMode), breakDesc: f.getSection(LayoutSection)?.desc ?? null, accidentalMode: this.jianpuAccidentals };
       } else if (this.layoutMode === "expanded") {
         req = this.expandedRequest();
       } else {
         const doc = this.currentScoreDoc();
         if (!doc || this.docFormat === "pu" || this.docFormat === "musicxml" || !singleVoice(doc)) return null;
-        req = { view: "original", doc, style: this.styleOf("original"), ...(this.docFormat === "123" ? { accidentalMode: this.jianpuAccidentals } : {}) };
+        req = { view: "original", doc, style: this.styleOf("original"), accidentalMode: this.jianpuAccidentals };
       }
       if (!req) return null;
       // 另一个排版器实例按当前档与纸排一遍，不动屏幕上那个
@@ -911,7 +911,7 @@ export class App implements OmrHost, PlaybackHost, FormatHost, FormatSwitchHost,
     const breakDesc = f.getSection(LayoutSection)?.desc ?? null;
     this._breakDesc = breakDesc; // 导出 PPTX 时另排一遍要用同一份分页描述
     try {
-      this.painter.loadSync({ view: this.layoutMode, doc, style: this.styleOf(this.layoutMode), breakDesc });
+      this.painter.loadSync({ view: this.layoutMode, doc, style: this.styleOf(this.layoutMode), breakDesc, accidentalMode: this.jianpuAccidentals });
     } catch (e) {
       console.error("layout failed", e);
       return false;
@@ -962,8 +962,8 @@ export class App implements OmrHost, PlaybackHost, FormatHost, FormatSwitchHost,
     const style = this.styleOf("expanded");
     const src = this.docFormat === "jpwabc" ? this._jpwDoc : this.currentScoreDoc();
     if (!src || !hasLines(src)) return null;
-    if (this.docFormat === "jpwabc") return { view: "expanded", doc: src, style, breakDesc: this._breakDesc };
-    return { view: "expanded", doc: this._expandedDoc(src), style };
+    if (this.docFormat === "jpwabc") return { view: "expanded", doc: src, style, breakDesc: this._breakDesc, accidentalMode: this.jianpuAccidentals };
+    return { view: "expanded", doc: this._expandedDoc(src), style, accidentalMode: this.jianpuAccidentals };
   }
 
   /** 展开档排的那份文档：MusicXML 按声部面板换旋律声部与歌词来源（元素 id 不变）。 */
@@ -981,9 +981,9 @@ export class App implements OmrHost, PlaybackHost, FormatHost, FormatSwitchHost,
           this.setStatus(t("status.noLines", { what }));
           return false;
         }
-        this.painter.loadSync({ view: "expanded", doc: this._expandedDoc(doc), style: this.styleOf("expanded") });
+        this.painter.loadSync({ view: "expanded", doc: this._expandedDoc(doc), style: this.styleOf("expanded"), accidentalMode: this.jianpuAccidentals });
       } else {
-        this.painter.loadSync({ view: "original", doc, style: this.styleOf("original"), ...(this.docFormat === "123" ? { accidentalMode: this.jianpuAccidentals } : {}) });
+        this.painter.loadSync({ view: "original", doc, style: this.styleOf("original"), accidentalMode: this.jianpuAccidentals });
       }
     } catch (e) {
       console.error(`${what}排版失败`, e);
@@ -2588,6 +2588,7 @@ export class App implements OmrHost, PlaybackHost, FormatHost, FormatSwitchHost,
     const outcome = await this.painter.load({
       view: this.mixedShowJianpuLayer ? "mixed" : "staff",
       doc,
+      accidentalMode: this.jianpuAccidentals,
       style: this.staffStyle(),
       page: this.staffPage,
       hideBarNumber: this.mixedHideBarNumber,

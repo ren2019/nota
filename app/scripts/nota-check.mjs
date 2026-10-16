@@ -31,3 +31,5 @@ await import(pathToFileURL(sourceOutput).href);
 const settingsOutput = path.join(root, "out/nota-output-settings-check.mjs");
 await build({ entryPoints: [path.join(root, "src/nota/output-settings.check.ts")], outfile: settingsOutput, bundle: true, platform: "node", format: "esm" });
 await import(pathToFileURL(settingsOutput).href);
+
+await import("./check-jianpu-origins.mjs");

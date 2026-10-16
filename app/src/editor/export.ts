@@ -201,6 +201,7 @@ export async function exportJianpu123(app: App): Promise<void> {
 }
 
 export async function exportPptx(app: App): Promise<void> {
+  await app.whenIdle();
   // 一律按**展开档**出片（两种格式同一条展开档排版）：屏幕在原样档也导得出 PPT 观感，
   // 切到展开档预览则是所见即所得。字号/纸张取展开档那一套设置。
   const bytes = await buildPptx(pptxPainter(app).pptxSource, app.colorsOf("expanded").bg);
@@ -298,25 +299,29 @@ export async function exportPuMusicXml(app: App): Promise<void> {
 
 /** Export staff pages to a directly downloadable PDF. */
 export async function exportMixedPdf(app: App): Promise<void> {
+  await app.whenIdle();
   const painter = app.mixedPainter;
   if (!painter || app.mode !== "mixed") return;
   const { w: wPt, h: hPt } = painter.pageSize(0);
   const context = exportFooterContext();
+  const bg = app.bgColor;
+  const title = painter.title;
+  // Snapshot every page before imports/dialogs/rasterization yield. A concurrent
+  // preference switch must not replace later pages with another projection.
+  const snapshots = Array.from({ length: painter.pageCount }, (_, i) => exportPage(app, i, context));
 
   if (isTauriRuntime()) {
     // Tauri path: serialize SVGs and invoke Rust export_pdf command
     const { invoke } = await import("@tauri-apps/api/core");
     const { save } = await import("@tauri-apps/plugin-dialog");
-    const title = painter.title || t("export.mixedName");
-    const outPath = await save({ defaultPath: `${title}.pdf`, filters: [{ name: "PDF", extensions: ["pdf"] }] });
+    const outPath = await save({ defaultPath: `${title || t("export.mixedName")}.pdf`, filters: [{ name: "PDF", extensions: ["pdf"] }] });
     if (!outPath) return;
     const pages: string[] = [];
-    for (let i = 0; i < painter.pageCount; i++) {
-      const svg = exportPage(app, i, context);
+    for (const svg of snapshots) {
       svg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
       svg.setAttribute("width", `${wPt}pt`);
       svg.setAttribute("height", `${hPt}pt`);
-      paintBg(svg, app.bgColor);
+      paintBg(svg, bg);
       pages.push(new XMLSerializer().serializeToString(svg));
     }
     await invoke("export_pdf_cmd", { pagesSvg: pages, widthPt: wPt, heightPt: hPt, outPath });
@@ -324,14 +329,13 @@ export async function exportMixedPdf(app: App): Promise<void> {
     const { jsPDF } = await import("jspdf");
     const orientation = wPt >= hPt ? "landscape" : "portrait";
     const pdf = new jsPDF({ unit: "pt", format: [wPt, hPt], orientation, compress: true });
-    for (let i = 0; i < painter.pageCount; i++) {
-      const svg = exportPage(app, i, context);
-      const png = await svgToBytes(svg, 2, colorToCss(app.bgColor));
+    for (const [i, svg] of snapshots.entries()) {
+      const png = await svgToBytes(svg, 2, colorToCss(bg));
       if (i > 0) pdf.addPage([wPt, hPt], orientation);
       pdf.addImage(png, "PNG", 0, 0, wPt, hPt, undefined, "FAST");
     }
     const bytes = new Uint8Array(pdf.output("arraybuffer"));
-    await saveBytes(bytes, `${painter.title || t("export.staffName")}.pdf`, "application/pdf");
+    await saveBytes(bytes, `${title || t("export.staffName")}.pdf`, "application/pdf");
   }
 }
 
