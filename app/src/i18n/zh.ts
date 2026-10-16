@@ -1,6 +1,20 @@
 // 界面文案（中文，同时是键的权威清单）。新增文字两边同加：en.ts 漏键 tsc 报错。
 // 占位写 {name}，由 t(key, { name }) 替换。
 export const zh = {
+  "nota.editor.context": "当前编辑曲谱",
+  "nota.editor.unsaved": "有未保存的修改",
+  "nota.editor.saved": "曲谱库 · 已保存",
+  "nota.editor.draft": "当前稿 · 尚未保存入库",
+  "nota.editor.printTitle": "印刷标题：{title}",
+  "nota.editor.back": "返回曲谱详情",
+  "nota.editor.current": "当前谱面",
+  "nota.editor.source": "原图",
+  "nota.editor.sourceReview": "原图校对",
+  "nota.editor.sourceFragment": "原图片段 · 随选中位置",
+  "nota.editor.page": "{kind} · 第 {page} / {total} 页",
+  "settings.scope.layout": "当前排版档：{view}。本档样式保存在当前浏览器，后续曲谱也会使用；恢复默认只清除本档用户样式，其他档和声部音量保留。",
+  "settings.scope.preferences": "语言、改音试听、导入方式等界面偏好保存在当前浏览器；不会改写乐谱正文。",
+  "settings.scope.header": "页眉字体设置保存在当前浏览器，各档共用；恢复本档默认不清除页眉设置。印刷标题取自乐谱正文，与曲谱库名称可不同。",
   "nota.export.123": "123 简谱文本（按输出设置）",
   "nota.export.123.single": "123 文本输出先支持单首、单旋律声部，请先选择旋律声部。",
   "nota.export.123.parse": "请先修正源码中的解析错误，再导出 123。",

@@ -497,6 +497,10 @@ export function showOptionsDialog(app: App): void {
     return el;
   };
 
+  pLayout.prepend(note(t("settings.scope.layout", { view: t(`view.${view}`) })));
+  pHeader.prepend(note(t("settings.scope.header")));
+  pOther.prepend(note(t("settings.scope.preferences")));
+
   // ---- 纸张 ----
   // 展开档取 PAGE_RATIOS 的**绝对尺寸**（导出 PPTX 就是这个纸）；原样档只取**比例**，
   // 纸宽锁定（见 App.layoutPage），所以两档虽然共用这张表，选中项各按各的算。

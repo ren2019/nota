@@ -19,6 +19,7 @@ import { mountPracticePanel } from "./nota/panel";
 import { PRACTICE_SAMPLE } from "./nota/sample";
 import { mountLibrary } from "./nota/library";
 import { CurrentDocumentSession } from "./nota/document-session";
+import { mountEditorPage } from "./nota/editor-page";
 import { mountDocumentDetail, type DetailMode, type DocumentDetail } from "./nota/detail";
 
 // 注册 Bravura 与 Bravura Text @font-face（替代 styles.css 里的静态声明），按 Vite base
@@ -131,6 +132,7 @@ async function boot() {
   const revealWorkspace = (mode: DetailMode = "edit") => detail.open(mode);
   const library = mountLibrary(app, revealWorkspace, session);
   detail = mountDocumentDetail(app, session, () => { void library.refresh(); });
+  mountEditorPage(app, session, detail);
   // Extensions receive the same App/session/shell; no second document is created.
   app.saveToLibrary = library.save;
   const showStartScreen = () => detail.home();
@@ -318,6 +320,7 @@ async function boot() {
 
   // paging / zoom keys
   window.addEventListener("keydown", (e) => {
+    if (detail.screen === "library") return;
     const mod = e.ctrlKey || e.metaKey;
     if (mod && (e.key === "=" || e.key === "+")) { e.preventDefault(); app.zoomBy(1.2); updateZoom(); }
     else if (mod && e.key === "-") { e.preventDefault(); app.zoomBy(1 / 1.2); updateZoom(); }
