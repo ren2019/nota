@@ -28,7 +28,7 @@ export function mountPracticePanel(app: App): void {
       <button id="practice-apply" class="button button-primary">转换并预览 <span aria-hidden="true">→</span></button>
     </div>
     <div class="practice-bottom">
-      <p id="practice-explain">选择孩子适合弹的调，旋律关系和节奏保持不变。</p>
+      <p id="practice-explain">选择适合演奏的调，旋律关系和节奏保持不变。</p>
       <div class="practice-exports">
         <label>${t("practice.size.label")}<select id="practice-size" aria-label="${t("practice.size.aria")}"><option value="20">${t("practice.size.large")}</option><option value="16">${t("practice.size.standard")}</option><option value="24">${t("practice.size.extraLarge")}</option></select></label>
         <button id="practice-a4" class="button button-secondary">A4 练习版</button>
@@ -97,7 +97,7 @@ export function mountPracticePanel(app: App): void {
     input.addEventListener("change", () => {
       el("practice-explain").textContent = mode() === "renotate"
         ? "保留每个音的声音和音区，用新的 1= 基准表达；可能出现更多升降号。"
-        : "选择孩子适合弹的调，旋律关系和节奏保持不变。";
+        : "选择适合演奏的调，旋律关系和节奏保持不变。";
     });
   });
   el<HTMLButtonElement>("practice-apply").onclick = function () {

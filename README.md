@@ -2,26 +2,23 @@
 
 A simple way to make sheet music.
 
-把已有曲谱转换成方便陪孩子练琴的简谱：导入、校对、转换，再生成清晰的打印版。以单旋律谱为主，歌词可选。
+把已有曲谱转换成方便练习与打印的简谱：导入、校对、转换，再生成清晰的打印版。以单旋律谱为主，歌词可选。
 
 项目上下文来自[「开源简谱转换方案」对话](https://example.invalid/removed-private-discussion)。以对话末段及后续的需求修正为准，产品名称为 Nota。
 
-## 家庭局域网使用
+## 自行部署与共享曲谱库
 
-Mac mini 已部署常驻服务：
+Nota 采用自行部署的单实例模式，不需要账号或多空间。部署者可以在自己的主机运行完整服务，并按需配置 HTTPS 反代；配置要求见 [部署说明](docs/deployment.md)。
 
-- [打开 Nota](http://192.0.2.10:5173/?lang=zh)
-- [Mac mini 本地域名](http://nota-host.local:5173/?lang=zh)
+曲谱保存在当前实例，访问同一实例的人共享首页的曲谱库。编辑态右上角「保存入库」保存可编辑原稿；首页可搜索、重新打开，编辑后可更新原记录或另存一份。也可从「新建空白谱」开始。
 
-同一局域网内的家人访问同一地址，即可共用首页的曲谱库。右上角「保存到曲谱库」保存可编辑原稿；首页可搜索、重新打开，编辑后可更新原记录或另存一份。也可从「新建空白谱」开始。
+曲谱实际保存在 `local/library/`，含原图的识谱项目一并保存，关闭浏览器或重启服务后仍保留。该目录不纳入 Git；备份它即可备份共享曲谱。PNG/PDF 下载仍是独立导出功能。
 
-曲谱实际保存在 `local/library/`，含原图的识谱项目一并保存，关闭浏览器或重启服务后仍保留。该目录不纳入 Git；备份它即可备份家庭曲谱。PNG/PDF 下载仍是独立导出功能。
+Safari 打开自己的实例地址后，可在「共享 → 添加到程序坞」保存成 Web App。共享曲谱来自同一主机，App 无需另建账户。此处交付联网使用的 Safari Web App，不承诺离线访问曲谱库。
 
-Safari 打开局域网地址后，可在「共享 → 添加到程序坞」保存成 Nota App；已在这台 Mac mini 上实际安装并独立启动。家庭曲谱来自同一主机，App 无需另建账户。此处交付联网使用的 Safari Web App，不承诺离线访问曲谱库。
+初始曲谱的版本与谱源说明见 [docs/library-seed.md](docs/library-seed.md)。原有示例保留。使用自己的种子文件执行 `npm run seed:library -- local/seeds/library-seed.json` 会跳过同名作品，不覆盖其他人的编辑。
 
-已初始化用户指定的 9 首单旋律曲谱，版本与谱源见 [docs/library-seed.md](docs/library-seed.md)。原有示例保留。再次执行 `npm run seed:library -- local/seeds/library-seed.json` 会跳过同名作品，不覆盖家人的编辑。
-
-首页「联网找谱」可检索结构化来源并独立核对音高、八度、时值和结构，打开候选后再自行保存；也可导入 agent 准备的候选文件。原生 ABC/MusicXML 保留来源与导入时的验证信息。图片识谱增加局部高音点恢复和复核提示，整张真实照片仍需校对。接入范围、iOS 播放修复及实测边界见 [本轮记录](docs/integration-2026-10-16.md)。
+独立「联网查谱」页面可检索结构化来源并独立核对音高、八度、时值和结构，打开候选后再自行保存；也可导入 agent 准备的候选文件。原生 ABC/MusicXML 保留来源与导入时的验证信息。图片识谱增加局部高音点恢复和复核提示，整张真实照片仍需校对。接入范围、iOS 播放修复及实测边界见 [本轮记录](docs/integration-2026-10-16.md)。
 
 ## 本地开发
 
@@ -62,9 +59,13 @@ npm run build # TypeScript 检查 + Vite 生产构建
 
 `1=C` 是记谱基准，不能据此断言曲子变成 C 大调或只用白键。
 
+## 开源许可
+
+Nota 采用 [MIT 许可证](LICENSE)。基于 Dolce 的代码保留其版权、[MIT 许可及第三方资源许可](app/LICENSE)，来源见 [app/UPSTREAM.md](app/UPSTREAM.md)。真实曲谱与导出件不属于项目代码许可的授权范围。
+
 ## 从这里继续
 
-- [全局简谱输出设置规格](https://github.com/ren2019/nota/issues/1)：已确认验收范围，等待实施。
+- [当前 IA 与用户旅程规格](https://github.com/ren2019/nota/issues/9)：实施范围与后续任务以 GitHub Issues 为准。
 
 - [需求与边界](docs/brief.md)：已确认需求、简化原则和第一阶段验收。
 - [实施路线](docs/plan.md)：MVP 已完成项、验证结果与后续工作。
@@ -77,4 +78,4 @@ npm run build # TypeScript 检查 + Vite 生产构建
 
 `npm run deploy:mac` 重新构建并部署到当前 Mac 的用户 LaunchAgent，监听局域网 5173 端口。登录后自动启动，退出终端不影响运行。
 
-运行维护见 [docs/deployment.md](docs/deployment.md)，用户故事及验收证据见 [docs/acceptance.md](docs/acceptance.md)。
+运行维护见 [docs/deployment.md](docs/deployment.md)，用户故事及验收证据见 [docs/acceptance.md](docs/acceptance.md)。个人实例的地址、域名、云厂商、网络拓扑和运行记录只保存在被忽略的 `local/`，不提交到仓库或 GitHub Issues。

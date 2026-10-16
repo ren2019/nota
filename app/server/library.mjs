@@ -35,7 +35,7 @@ export function libraryMiddleware(directory = defaultDirectory) {
     };
     try {
       const host = new URL(`http://${req.headers.host ?? ""}`).hostname.toLowerCase();
-      if (host !== "localhost" && !isIP(host.replace(/^\[|\]$/g, "")) && !allowedHosts.includes(host)) throw fail(403, "请通过 Nota 的局域网地址访问曲谱库。");
+      if (host !== "localhost" && !isIP(host.replace(/^\[|\]$/g, "")) && !allowedHosts.includes(host)) throw fail(403, "请通过已配置的 Nota 地址访问曲谱库。");
       const match = /^\/api\/library(?:\/([^/]+))?\/?$/.exec(url.pathname);
       if (!match || (match[1] && !ID.test(match[1]))) throw fail(404, "未找到曲谱。");
       const id = match[1];
@@ -68,7 +68,7 @@ export function libraryMiddleware(directory = defaultDirectory) {
         if (!Number.isSafeInteger(data?.revision) || data.revision < 1) throw fail(400, "请提供有效的曲谱修订版本。");
         const deleted = await serialize(async () => {
           const previous = await load(id);
-          if (data.revision !== previous.revision) throw fail(409, "家人刚刚更新了这份曲谱，尚未删除。请重新打开后确认。");
+          if (data.revision !== previous.revision) throw fail(409, "其他人刚刚更新了这份曲谱，尚未删除。请重新打开后确认。");
           await unlink(file(id));
           return { id, revision: previous.revision, deleted: true };
         });
@@ -81,7 +81,7 @@ export function libraryMiddleware(directory = defaultDirectory) {
       }
       const saved = await serialize(async () => {
         const previous = id ? await load(id) : null;
-        if (previous && data.revision !== previous.revision) throw fail(409, "家人刚刚更新了这份曲谱，请重新打开，或另存一份。");
+        if (previous && data.revision !== previous.revision) throw fail(409, "其他人刚刚更新了这份曲谱，请重新打开，或另存一份。");
         const now = new Date().toISOString();
         const record = {
           id: id ?? randomUUID(), title: data.title.trim(), format: data.format, text: data.text,
@@ -110,5 +110,5 @@ export function libraryMiddleware(directory = defaultDirectory) {
 
 export function notaLibrary(directory) {
   const install = (server) => { server.middlewares.use(libraryMiddleware(directory)); };
-  return { name: "nota-family-library", configureServer: install, configurePreviewServer: install };
+  return { name: "nota-shared-library", configureServer: install, configurePreviewServer: install };
 }

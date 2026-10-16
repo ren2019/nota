@@ -373,7 +373,7 @@ export function scoreSourceMiddleware() {
         .toLowerCase()
         .split(",");
       if (host !== "localhost" && !isIP(host) && !allowed.includes(host))
-        throw new Error("请通过 Nota 局域网地址访问。");
+        throw new Error("请通过已配置的 Nota 地址访问。");
       if (req.method === "GET" && url.pathname === "/api/score-sources") {
         return send(200, await searchSources(url.searchParams.get("q") ?? ""));
       }
