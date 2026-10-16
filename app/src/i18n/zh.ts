@@ -1,6 +1,10 @@
 // 界面文案（中文，同时是键的权威清单）。新增文字两边同加：en.ts 漏键 tsc 报错。
 // 占位写 {name}，由 t(key, { name }) 替换。
 export const zh = {
+  "nota.export.123": "123 简谱文本（按输出设置）",
+  "nota.export.123.single": "123 文本输出先支持单首、单旋律声部，请先选择旋律声部。",
+  "nota.export.123.parse": "请先修正源码中的解析错误，再导出 123。",
+  "nota.export.123.lossy": "转换为 123 会改变原谱：{reason}。已保留原格式，请先在原谱中编辑或打印。",
   "settings.tab.jianpu": "简谱输出",
   "settings.jianpu.hint": "在当前设备上立即生效；不改原稿与试听音高。必要的还原号始终保留。",
   "settings.jianpu.explicit": "逐音明确标注（默认） · 1 ♭3 5 ♭3",

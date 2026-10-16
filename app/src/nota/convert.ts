@@ -5,6 +5,7 @@ import { midiOfPitch, transposeFifths } from "../model/edit";
 import { jpPitch } from "../score/jppitch";
 import { parse123 } from "../j123/parse";
 import { emit123 } from "../j123/emit";
+import { DEFAULT_JIANPU_ACCIDENTALS, projectJianpuOutput, type JianpuAccidentalMode } from "./jianpu-output";
 
 export type ConversionMode = "transpose" | "renotate";
 export const KEYS = [
@@ -44,7 +45,7 @@ function spelling(midi: number, key: Key, source: Pitch): Pitch {
 }
 
 /** A plain 123 score in, a plain 123 score out. No additional storage model. */
-export function convertPracticeText(text: string, target: number, mode: ConversionMode) {
+export function convertPracticeText(text: string, target: number, mode: ConversionMode, accidentalMode: JianpuAccidentalMode = DEFAULT_JIANPU_ACCIDENTALS) {
   if (!Number.isInteger(target) || target < -7 || target > 7) throw new Error("请选择有效的目标基准。");
   const doc = parse123(text);
   if (doc.diagnostics.some((d) => d.severity === "error")) throw new Error("请先修正源码中的解析错误，再转换。");
@@ -59,6 +60,7 @@ export function convertPracticeText(text: string, target: number, mode: Conversi
   let sourceKey = initialKey;
   let inputCarry = new AccidentalCarry();
   let outputCarry = new AccidentalCarry();
+  let graceCarry: { input: AccidentalCarry; output: AccidentalCarry } | undefined;
   let notes = 0;
   let harmony = false;
   const preview: string[] = [];
@@ -73,6 +75,7 @@ export function convertPracticeText(text: string, target: number, mode: Conversi
     if (!continuesMeasure(part.measures[mi - 1], measure)) {
       inputCarry = new AccidentalCarry();
       outputCarry = new AccidentalCarry();
+      graceCarry = undefined;
     }
     for (const element of measure.elements) {
       if (element.kind !== "chord") continue;
@@ -80,38 +83,46 @@ export function convertPracticeText(text: string, target: number, mode: Conversi
         throw new Error("这一版先支持单旋律，暂不转换和弦内多音或交叠声部。");
       }
       harmony ||= !!element.harmony || !!element.laterHarmonies?.length || !!element.sustains?.some((s) => s.harmony);
+      // Match the unified 123 playback: grace groups inherit the main melody's
+      // context but never change a following principal note's accidental carry.
+      if (!element.grace) graceCarry = undefined;
+      const context = element.grace
+        ? graceCarry ??= { input: inputCarry.fork(), output: outputCarry.fork() }
+        : { input: inputCarry, output: outputCarry };
       for (const note of element.notes) {
         if (!note.degree) throw new Error("有音符缺少简谱记录，请先转换为简谱再试。");
-        const original = inputCarry.pitch(note.degree, sourceKey);
+        const original = context.input.pitch(note.degree, sourceKey);
         let degree: Degree;
         if (mode === "transpose") {
           degree = { ...note.degree };
-          const moved = outputCarry.pitch(degree, outputKey);
+          const moved = context.output.pitch(degree, outputKey);
           const octaves = (midiOfPitch(original) + shift - midiOfPitch(moved)) / 12;
           if (!Number.isInteger(octaves)) throw new Error("这处调号暂时无法按同一音程移调。");
           degree.octaveShift += octaves;
         } else {
           const p = spelling(midiOfPitch(original), outputKey, original);
-          // Practice scores show every altered note explicitly. Still track
-          // carry so a following unaltered note gets its cancellation natural.
-          const accidental = outputCarry.mark(p, outputKey)
-            ?? new AccidentalCarry().mark(p, outputKey);
+          const accidental = context.output.mark(p, outputKey);
           degree = degreeFromPitch(p, outputKey, accidental);
         }
         note.degree = degree;
         delete note.pitch;
         notes++;
-        if (preview.length < 10) {
-          const acc = { flat: "♭", sharp: "♯", natural: "♮", "double-flat": "𝄫", "double-sharp": "𝄪" };
-          preview.push(`${degree.accidental ? acc[degree.accidental] : ""}${degree.number}${degree.octaveShift > 0 ? "′".repeat(degree.octaveShift) : "̣".repeat(-degree.octaveShift)}`);
-        }
       }
     }
   });
   if (!notes) throw new Error("请先导入或打开一份有音符的乐谱。");
   song.key = { fifths: target };
+  const output = projectJianpuOutput(doc, accidentalMode);
+  const acc = { flat: "♭", sharp: "♯", natural: "♮", "double-flat": "𝄫", "double-sharp": "𝄪" };
+  for (const measure of output.songs[0]!.parts[0]!.measures) for (const element of measure.elements) {
+    if (element.kind !== "chord") continue;
+    for (const note of element.notes) {
+      const degree = note.degree!;
+      if (preview.length < 10) preview.push(`${degree.accidental ? acc[degree.accidental] : ""}${degree.number}${degree.octaveShift > 0 ? "′".repeat(degree.octaveShift) : "̣".repeat(-degree.octaveShift)}`);
+    }
+  }
   return {
-    text: emit123(doc), notes, shift, preview: preview.join("  "),
+    text: emit123(output), notes, shift, preview: preview.join("  "),
     sourceKey: keyLabel(initialKey.fifths), targetKey: keyLabel(target),
     warning: harmony && mode === "transpose" ? "谱中的和弦名称未跟随移调，请手工核对。" : "",
   };

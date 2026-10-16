@@ -20,6 +20,7 @@ import { openModal } from "./dialogs";
 import { exportFooterContext, withExportFooter, type FooterContext } from "../nota/export-footer";
 import { showFooterSettings } from "../nota/footer-settings";
 import { resolvePaper } from "../style/paper";
+import { emitJianpu123 } from "../nota/text-output";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -191,6 +192,14 @@ export async function exportMidi(app: App): Promise<void> {
   await saveBytes(bytes, `${baseName(app)}.mid`, "audio/midi");
 }
 
+/** The explicit 123 download applies output settings; source saves stay raw. */
+export async function exportJianpu123(app: App): Promise<void> {
+  const doc = app.scoreDoc();
+  if (!doc) throw new Error(t("export.noLines"));
+  const text = emitJianpu123(doc, app.jianpuAccidentals);
+  await saveBytes(new TextEncoder().encode(text), `${baseName(app)}.123`, "text/plain");
+}
+
 export async function exportPptx(app: App): Promise<void> {
   // 一律按**展开档**出片（两种格式同一条展开档排版）：屏幕在原样档也导得出 PPT 观感，
   // 切到展开档预览则是所见即所得。字号/纸张取展开档那一套设置。
@@ -348,6 +357,7 @@ const canJly = (app: App): boolean => !isMixed(app);
  *  换源格式（123 / JPWABC / ABC / 文本谱）走「另存为」（`showSaveAsDialog`），
  *  `.musicxml` 转成简谱编辑在打开时选（`App._importBytes`）。 */
 const EXPORT_ITEMS: readonly ExportItem[] = [
+  { get label() { return t("nota.export.123"); }, available: (app) => !isMixed(app), run: exportJianpu123 },
   { label: "简谱 PNG（全部页面）", available: (app) => !isMixed(app), run: exportJianpuPng },
   { label: "简谱 PDF（当前版式）", available: (app) => !isMixed(app), run: exportJianpuPdf },
   // 文本谱（非混排预览）：走 pu 自己的排版器与直出路径

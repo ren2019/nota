@@ -2,6 +2,10 @@
 import type { MsgKey } from "./zh";
 
 export const en: Record<MsgKey, string> = {
+  "nota.export.123": "123 jianpu text (output settings)",
+  "nota.export.123.single": "123 output currently supports one song with one melody part. Select the melody part first.",
+  "nota.export.123.parse": "Fix source parsing errors before exporting 123.",
+  "nota.export.123.lossy": "Conversion to 123 would change the score: {reason}. The native source is preserved; edit or print it in its original format.",
   "settings.tab.jianpu": "Jianpu output",
   "settings.jianpu.hint": "Applies immediately on this device. Source and playback are unchanged; required naturals are always retained.",
   "settings.jianpu.explicit": "Mark every altered note (default) · 1 ♭3 5 ♭3",

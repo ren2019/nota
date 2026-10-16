@@ -53,6 +53,20 @@ function inspect(text: string) {
 }
 
 const example = "T:八度验证\nM:4/4\nK:1=bE\n6, 1 3 0 |]";
+const moscowOpening = "T:莫斯科开头\nM:2/4\nK:1=bE\n6,_ 1_ 3_ 1_ |]";
+const carried = convertPracticeText(moscowOpening, 0, "renotate", "measure");
+equal(carried.preview, "1  ♭3  5  3", "Conversion summary uses the same selected output marks");
+equal(inspect(carried.text).degrees.map(d => d.accidental), [undefined, "flat", undefined, undefined], "measure-mode renotation leaves Moscow's fourth mark implicit");
+equal(inspect(carried.text).pitches, [60, 63, 67, 63], "measure-mode fourth note still sounds E-flat4");
+const playbackPitches = (text: string) => playSourceOf(parse123(text))!.parts.flatMap(p => p.measures.flatMap(m => m.entries.filter(isTimelineChord).filter(c => !c.rest).flatMap(c => c.notes.map(n => n.pitch))));
+const graceInput = "T:倚音不可改变主旋律\nM:3/4\nK:1=C\n{b3}3 3 n3 |]";
+equal(playbackPitches(graceInput), [64, 64, 64], "original unified playback does not carry a grace flat into the main notes");
+for (const accidentalMode of ["explicit", "measure"] as const) {
+  for (const target of KEYS) for (const mode of ["transpose", "renotate"] as const) {
+    const result = convertPracticeText(graceInput, target.fifths, mode, accidentalMode);
+    equal(playbackPitches(result.text), [64 + result.shift, 64 + result.shift, 64 + result.shift], `${accidentalMode}: ${mode} to ${target.name} preserves the original main melody interval`);
+  }
+}
 const original = inspect(example);
 equal(original.pitches, [60, 63, 67], "explicit octaves in original");
 const moved = convertPracticeText(example, 0, "transpose");
@@ -73,11 +87,12 @@ const fixtures = [
 let cases = 0;
 for (const fixture of fixtures) {
   const before = inspect(fixture);
-  for (const target of KEYS) for (const mode of ["transpose", "renotate"] as const) {
-    const out = convertPracticeText(fixture, target.fifths, mode);
+  for (const target of KEYS) for (const mode of ["transpose", "renotate"] as const) for (const accidentalMode of ["explicit", "measure"] as const) {
+    const out = convertPracticeText(fixture, target.fifths, mode, accidentalMode);
     const after = inspect(out.text);
     equal(after.pitches, before.pitches.map((p) => p + out.shift), `${mode} to ${target.name}: pitch invariant`);
     equal(after.structure, before.structure, `${mode} to ${target.name}: rests, rhythm, lyrics, repeats and arcs`);
+    equal(playbackPitches(out.text), playbackPitches(fixture).map(p => p + out.shift), `${mode}/${accidentalMode} to ${target.name}: unified playback interval invariant`);
     const back = convertPracticeText(out.text, before.song.key?.fifths ?? 0, "renotate");
     equal(inspect(back.text).pitches, after.pitches, "renotation round trip preserves octaves");
     cases++;
@@ -88,9 +103,10 @@ for (const fixture of fixtures) {
 for (const source of KEYS) for (const target of KEYS) {
   const text = `T:调号组合\nM:4/4\nK:1=${source.name.replace("♭", "b").replace("♯", "#").replace(/^([A-G])([b#])$/, "$2$1")}\n1, 7, 1 7 | #4 4 n4 1' |]`;
   const before = inspect(text);
-  for (const mode of ["transpose", "renotate"] as const) {
-    const out = convertPracticeText(text, target.fifths, mode);
+  for (const mode of ["transpose", "renotate"] as const) for (const accidentalMode of ["explicit", "measure"] as const) {
+    const out = convertPracticeText(text, target.fifths, mode, accidentalMode);
     equal(inspect(out.text).pitches, before.pitches.map((p) => p + out.shift), "all key-pair pitch invariants");
+    equal(playbackPitches(out.text), playbackPitches(text).map(p => p + out.shift), "all key-pair unified playback invariants");
     cases++;
   }
 }
