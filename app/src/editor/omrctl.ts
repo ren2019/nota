@@ -784,6 +784,10 @@ export class OmrController implements FormatSource {
       const t0 = performance.now();
       const { bin, score } = await recognizeMusicppDetailed(picked.bytes, picked.mime);
       if (g !== this.gen) return false;
+      if (!score.rows.some(row => row.nums.length > 0)) {
+        this.host.setStatus(t('omr.noNotesFound'));
+        return false;
+      }
       this.emit(score, bin);
       this.host.setContextControl(this.kindField(), true);
       await this.enterAfterRecognize("original"); // 简谱进原样档，对照方式按用户上次的选择（没选过就并排）
