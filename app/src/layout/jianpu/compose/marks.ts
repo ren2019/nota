@@ -4,6 +4,7 @@ import { Point } from "../../../common/geom";
 import { BeamLine, Group, Slur } from "../../pageitem";
 import { addEndingBracket, endingDrop, endingLabelDx } from "../../../engrave/ending";
 import { TupletGlyph } from "../../../engrave/tuplet";
+import { AccidentalGlyph } from "../../../engrave/accidental";
 import { sustainDash } from "../../../engrave/dash";
 import { beamY, highDotY, lowDotY } from "../../../engrave/stack";
 import { hairpinPath, JP_HAIRPIN, jpHairpinHalves, jpHairpinLineWidth } from "../../../engrave/hairpin";
@@ -156,8 +157,16 @@ export function paintLayer(c: OriginalCtx,
     if (it.element.kind !== "note" || it.element.hidden) continue;
     const ch = String(it.element.pitch);
     const b = font.charBound(ch);
+    const digitX = x - (b.left + b.right) / 2;
+    const digitY = y - (b.top + b.bottom) / 2;
+    if (it.element.accidental) {
+      root.add(new AccidentalGlyph(it.element.accidental, { font, text: ch, x: digitX, y: digitY }, {
+        music: new Font("Bravura", 20), color: c.ink,
+        kind: m.style.look.accidentalStyle, scale: m.style.look.accidentalScale,
+      }).item);
+    }
     root.add(
-      text(ch, x - (b.left + b.right) / 2, y - (b.top + b.bottom) / 2, font, c.ink),
+      text(ch, digitX, digitY, font, c.ink),
     );
     // 小字层的叠层与主旋律同一套（engrave/stack.ts），整体按 cueScale 缩；低音点同样让开减时线
     const oct = it.element.octave;

@@ -36,6 +36,8 @@ import { projectJianpuOutput, type JianpuAccidentalMode } from "../nota/jianpu-o
 export interface StaffPaintRequest {
   readonly view: "staff" | "mixed";
   readonly doc: ScoreDoc;
+  /** Captured preference for the jianpu overlay only; staff notation is unchanged. */
+  readonly accidentalMode?: JianpuAccidentalMode;
   /** computed 样式表（主题 `staff`）；缺省取内置那份。 */
   readonly style?: StyleSheet;
   /** 谱里没写纸时用的那张（pt；`heightPt` null = 长图），见 `MixedOptions.page`。 */
@@ -291,7 +293,8 @@ export class ScorePainter {
     const options = staffOptionsOf(meta, req.style);
     options.hideBarNumber = req.hideBarNumber;
     options.page = req.page;
-    const score = layoutStaff(req.doc, options);
+    const doc = req.view === "mixed" && req.accidentalMode ? projectJianpuOutput(req.doc, req.accidentalMode) : req.doc;
+    const score = layoutStaff(doc, options);
     const { pages, placed } = layoutStaffPages(score, req.view === "mixed", req.jianpuPart ?? 0);
     const d = score.defaults;
     const wT = d.pageWidth ?? 1200;

@@ -24,3 +24,5 @@ await import(pathToFileURL(octaveOutput).href);
 const sourceOutput = path.join(root, "out/nota-structured-check.mjs");
 await build({entryPoints:[path.join(root,"src/nota/structured-score.check.ts")],outfile:sourceOutput,bundle:true,platform:"node",format:"esm"});
 await import(pathToFileURL(sourceOutput).href);
+
+await import("./check-jianpu-origins.mjs");
