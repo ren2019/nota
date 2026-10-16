@@ -1,6 +1,10 @@
 // 界面文案（中文，同时是键的权威清单）。新增文字两边同加：en.ts 漏键 tsc 报错。
 // 占位写 {name}，由 t(key, { name }) 替换。
 export const zh = {
+  "nota.export.123": "123 简谱文本（按输出设置）",
+  "nota.export.123.single": "123 文本输出先支持单首、单旋律声部，请先选择旋律声部。",
+  "nota.export.123.parse": "请先修正源码中的解析错误，再导出 123。",
+  "nota.export.123.lossy": "转换为 123 会改变原谱：{reason}。已保留原格式，请先在原谱中编辑或打印。",
   "settings.footer.title": "导出页脚",
   "settings.footer.brand": "显示品牌署名",
   "settings.footer.date": "显示生成日期",

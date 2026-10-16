@@ -11,6 +11,7 @@ import { locate } from "../model/edit";
 import { JpwFile, LayoutSection } from "../jpword/jpwfile";
 import { measureDocument, PaintResources, ScorePainter, type SyncPaintRequest } from "../layout/painter";
 import { DEFAULT_JIANPU_ACCIDENTALS, jianpuAccidentalMode, type JianpuAccidentalMode } from "../nota/jianpu-output";
+import { emitJianpu123 } from "../nota/text-output";
 import { computeStyle, sanitizeLayer, upsertRule, type StyleRule } from "../style/cascade";
 import type { Length } from "../style/units";
 import { NOTE_FONTS } from "../style/fonts";
@@ -2669,9 +2670,10 @@ export class App implements OmrHost, PlaybackHost, FormatHost, FormatSwitchHost,
       for (const song of doc.songs) applyBreaks(song, ls, { mid: "source", pages: "keep" });
     }
     try {
-      return spec.emit(doc);
+      return target === "123" ? emitJianpu123(doc, this.jianpuAccidentals) : spec.emit(doc);
     } catch (e) {
       console.error("转换失败", e);
+      this.setStatus(t("fs.failed", { error: e instanceof Error ? e.message : String(e) }));
       return null;
     }
   }

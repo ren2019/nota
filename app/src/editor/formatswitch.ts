@@ -14,6 +14,8 @@ import { describeLosses, planSave } from "../model/capability";
 import type { DocFormatId } from "./formats";
 import { showConfirmDialog } from "./dialogs";
 import { t } from "../i18n";
+import { DEFAULT_JIANPU_ACCIDENTALS, type JianpuAccidentalMode } from "../nota/jianpu-output";
+import { emitJianpu123 } from "../nota/text-output";
 
 /** 下拉里的一项。 */
 export interface FormatOption {
@@ -107,6 +109,7 @@ export class FormatSwitch {
 
 /** 打开的文件那一侧向 App 要的能力。 */
 export interface FileSwitchHost {
+  readonly jianpuAccidentals?: JianpuAccidentalMode;
   getText(): string;
   readonly filePath: string | null;
   /** 按当前格式解析当前文本（App 那边有缓存）；读不出返回 null */
@@ -202,7 +205,7 @@ export class FileFormatSource implements FormatSource {
     if (losses.length && !(await showConfirmDialog(t("fs.lossTitle"), describeLosses(spec.id, losses)))) return false;
     let out: string;
     try {
-      out = spec.emit(this.doc);
+      out = spec.id === "123" ? emitJianpu123(this.doc, this.host.jianpuAccidentals ?? DEFAULT_JIANPU_ACCIDENTALS) : spec.emit(this.doc);
     } catch (e) {
       console.error("转换失败", e);
       this.host.setStatus(t("fs.failed", { error: (e instanceof Error ? e.message : String(e)) }));
