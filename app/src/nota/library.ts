@@ -1,39 +1,12 @@
 import { provenanceFooterSource } from "./score-footer-source";
-import type { App, ViewMode } from "../editor/app";
-import type { DocFormatId } from "../editor/formats";
+import type { App } from "../editor/app";
 import { packProject } from "../editor/omrproject";
 import { showConfirmDialog, showFormDialog } from "../editor/dialogs";
 import { keyLabel } from "./convert";
 import "./library.css";
-import { mountSourceImport, type SourceProvenance, type SourceCandidate } from "./source-import";
+import { CurrentDocumentSession, libraryRequest as request, LibraryError, type LibraryItem } from "./document-session";
+import { mountSourceImport, type SourceCandidate } from "./source-import";
 
-interface LibraryItem {
-  id: string;
-  title: string;
-  format: DocFormatId;
-  key: string;
-  meter: string;
-  updatedAt: string;
-  revision: number;
-  source?: SourceProvenance;
-}
-interface LibraryScore extends LibraryItem {
-  text: string;
-  project?: string;
-  presentation?: { mode: ViewMode; noteSize: number; paper: string; orientation: "portrait" | "landscape"; margin: number[] | null };
-}
-
-class LibraryError extends Error {
-  constructor(message: string, readonly status: number) { super(message); }
-}
-async function request<T>(path = "", options?: RequestInit): Promise<T> {
-  let response: Response;
-  try { response = await fetch(`/api/library${path}`, options); }
-  catch { throw new Error("暂时连接不到曲谱库，请确认 Nota 服务正在运行。"); }
-  const body = await response.json().catch(() => null);
-  if (!response.ok || body === null) throw new LibraryError(body?.error ?? "曲谱库暂时不可用，请稍后重试。", response.status);
-  return body as T;
-}
 function base64(bytes: Uint8Array): string {
   const chunks = [];
   for (let i = 0; i < bytes.length; i += 32768) chunks.push(String.fromCharCode(...bytes.subarray(i, i + 32768)));
@@ -41,7 +14,7 @@ function base64(bytes: Uint8Array): string {
 }
 
 /** One shared library on the Nota host; opening a score never re-runs recognition. */
-export function mountLibrary(app: App, revealWorkspace: () => void) {
+export function mountLibrary(app: App, revealWorkspace: (mode?: "practice" | "edit") => void, session: CurrentDocumentSession) {
   const root = document.createElement("section");
   root.id = "nota-library";
   root.setAttribute("aria-labelledby", "library-title");
@@ -63,9 +36,6 @@ export function mountLibrary(app: App, revealWorkspace: () => void) {
   const count = root.querySelector<HTMLSpanElement>("#library-count")!;
   const saveButton = document.getElementById("btn-save") as HTMLButtonElement;
   let items: LibraryItem[] = [];
-  let current: LibraryItem | null = null;
-  let source: SourceProvenance | undefined;
-  let importedTitle: string | undefined;
   let busy = false;
   let fetching = false;
 
@@ -119,33 +89,11 @@ export function mountLibrary(app: App, revealWorkspace: () => void) {
     busy = true;
     button.disabled = true;
     try {
-      if (!(await app.confirmReplace())) return;
-      const saved = await request<LibraryScore>(`/${item.id}`);
-      app.playback.stop();
-      if (saved.project) {
-        const bytes = Uint8Array.from(atob(saved.project), (c) => c.charCodeAt(0));
-        if (!(await app.openProject(bytes, `${saved.title}.dolce`))) throw new Error("这份曲谱的原图项目暂时无法打开。");
-      } else {
-        app.omr.clear();
-        app.adoptText(saved.format, saved.text, null);
-        app.formats.use(null);
+      if (session.current?.id !== item.id) {
+        if (!(await app.confirmReplace())) return;
+        await session.openLibrary(item.id);
       }
-      const p = saved.presentation;
-      if (p && ["original", "expanded", "staff", "mixed"].includes(p.mode)) {
-        await app.setViewMode(p.mode);
-        if (Number.isFinite(p.noteSize) && p.noteSize >= 8 && p.noteSize <= 72) app.applyRenderSettings({
-          fontSize: p.noteSize,
-          paper: { jianpu: { paper: p.paper, orientation: p.orientation === "landscape" ? "landscape" : "portrait", margin: p.margin } },
-        });
-      }
-      await app.whenIdle();
-      current = saved;
-      source = saved.source;
-      app.exportSourceDescription = provenanceFooterSource(source);
-      importedTitle = undefined;
-      app.markClean();
-      app.setStatus(`已从曲谱库打开「${saved.title}」。${saved.source ? "来源在导入时已独立对照，后续编辑请另行复核。" : ""}`);
-      revealWorkspace();
+      revealWorkspace("practice");
     } catch (e) {
       message.hidden = false;
       message.textContent = e instanceof Error ? e.message : String(e);
@@ -160,14 +108,14 @@ export function mountLibrary(app: App, revealWorkspace: () => void) {
       const label = document.createElement("label");
       label.textContent = "曲名";
       const input = document.createElement("input");
-      input.value = current?.title ?? importedTitle ?? app.documentTitle() ?? "未命名曲谱";
+      input.value = session.current?.title ?? session.importedTitle ?? app.documentTitle() ?? "未命名曲谱";
       input.maxLength = 120;
       input.setAttribute("aria-label", "曲名");
       label.append(input);
       body.append(label);
       const copy = document.createElement("input");
       copy.type = "checkbox";
-      if (current) {
+      if (session.current) {
         const option = document.createElement("label");
         option.className = "library-copy-option";
         option.append(copy, "另存一份，保留原曲谱");
@@ -194,15 +142,15 @@ export function mountLibrary(app: App, revealWorkspace: () => void) {
       const page = app.paperState("jianpu").page;
       const payload = {
         title: named.title, text, format,
-        ...(source ? {source} : {}),
+        ...(session.source ? {source: session.source} : {}),
         key: song?.key ? `1=${keyLabel(song.key.fifths)}` : "",
         meter: song?.time ? `${song.time.beats}/${song.time.beatType}` : "",
         ...(snapshot ? { project: base64(packProject(snapshot, __APP_VERSION__)) } : {}),
         presentation: { mode: app.viewMode, noteSize: app.fontSize, paper: page.paper ?? "A4", orientation: page.orientation ?? "portrait", margin: Array.isArray(page.margin) ? page.margin : null },
-        ...(current && !named.copy ? { revision: current.revision } : {}),
+        ...(session.current && !named.copy ? { revision: session.current.revision } : {}),
       };
       saveButton.textContent = "正在保存…";
-      let existing = current && !named.copy ? current : null;
+      let existing = session.current && !named.copy ? session.current : null;
       let saved: LibraryItem;
       const write = () => request<LibraryItem>(existing ? `/${existing.id}` : "", {
         method: existing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
@@ -214,7 +162,7 @@ export function mountLibrary(app: App, revealWorkspace: () => void) {
         existing = null;
         saved = await write();
       }
-      current = saved;
+      session.acceptSaved(saved);
       if (app.getText() === text && app.docFormat === format) app.markClean();
       app.setStatus(`已保存「${saved.title}」到曲谱库。回到首页即可找到。`);
       await refresh();
@@ -227,14 +175,14 @@ export function mountLibrary(app: App, revealWorkspace: () => void) {
     app.playback.stop(); app.omr.clear();
     app.adoptText(candidate.format, candidate.text, null); app.formats.use(null);
     await app.setViewMode(candidate.format === 'musicxml' ? 'staff' : 'expanded');
-    await app.whenIdle(); current = null; source = candidate.source; importedTitle = candidate.title;
-    app.exportSourceDescription = provenanceFooterSource(source);
+    await app.whenIdle(); session.detach(candidate.source, candidate.title);
+    app.exportSourceDescription = provenanceFooterSource(session.source);
     app.setStatus(`已打开「${candidate.title}」候选。来源数据对照通过；请核对版本与谱面，确认后保存到曲谱库。`);
-    revealWorkspace();
+    revealWorkspace("edit");
   }
   mountSourceImport(adoptCandidate);
   search.addEventListener("input", render);
   root.querySelector("#library-refresh")!.addEventListener("click", () => void refresh());
   void refresh();
-  return { save, refresh, detach: () => { current = null; source = undefined; importedTitle = undefined; app.exportSourceDescription = ""; } };
+  return { save, refresh, detach: () => session.detach() };
 }
