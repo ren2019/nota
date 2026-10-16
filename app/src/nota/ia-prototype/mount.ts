@@ -5,11 +5,12 @@ import "./prototype.css";
 
 type Variant = "A" | "B" | "C";
 type Scene = "new" | "review" | "practice";
-const names = { A: "引导式制谱", B: "谱面工作台", C: "制作 / 练习双空间" };
+const names = { A: "引导式制谱", B: "曲子详情 · 双态", C: "制作 / 练习双空间" };
 const steps = ["带入曲谱", "校对原谱", "调整练习谱", "排版与交付"];
 const titles = ["小星星", "两只老虎", "莫斯科郊外的晚上", "字母歌", "苏珊娜", "义勇军进行曲", "国际歌", "摇篮曲", "马赛曲", "星条旗", "苏联国歌", "小星星 · 原图校对"];
 const esc = (s: string) => s.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 let variant: Variant = "A", scene: Scene = "review", phone = false, compare = false;
+let phoneWidth = 390;
 let s = fresh();
 let root: HTMLElement;
 function fresh() {
@@ -17,7 +18,7 @@ function fresh() {
     mode: "renotate", target: "C", applied: false, font: "大字", lyrics: true,
     saved: false, playing: false, inspector: "校对", space: "制作", page: "work",
     sourceCode: false, original: true, selected: 0, query: "", searched: false,
-    notice: "", output: "PDF", note: "", panel: false };
+    notice: "", output: "PDF", note: "", panel: false, speed: "1×", looping: false };
 }
 function btn(text: string, action: string, kind = "", val = "") {
   return '<button class="' + kind + '" data-act="' + action + '" data-val="' + esc(val) + '">' + text + "</button>";
@@ -84,11 +85,55 @@ export function VariantA() {
     (!s.loaded || s.step === 0 ? sourceChooser() + '<section class="recent">' + library() + '</section>' :
       '<div class="a-work"><aside>' + (s.step === 1 ? correction() : s.step === 2 ? conversion() : output()) + '</aside><div class="a-preview">' + (s.step === 1 && s.original ? original() : "") + score() + '</div></div><div class="step-actions">' + btn("← 上一步", "prev", "secondary") + '<span class="muted">' + (s.doubts && s.step > 1 ? "还有 " + s.doubts + " 处待复核" : "随时可以返回前一步") + '</span>' + (s.step < 3 ? btn(s.step === 1 ? "继续：调整练习谱 →" : "继续：排版与交付 →", "next", "primary") : btn("进入练习 →", "practice", "primary", s.title)) + "</div>") + "</main>";
 }
+// B iteration: one song detail, two modes; phone tools open over the canvas.
+function glyph(name: string) {
+  const paths: Record<string, string> = {
+    back: '<path d="m14 6-6 6 6 6"/>',
+    check: '<path d="m8 12 3 3 5-6"/><rect x="4" y="4" width="16" height="16" rx="4"/>',
+    edit: '<path d="m14 5 5 5M4 20l5-1L20 8a2 2 0 0 0-5-5L4 14v6Z"/>',
+    tune: '<path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/>',
+    share: '<path d="M12 15V3m-4 4 4-4 4 4M5 13v7h14v-7"/>',
+    play: '<path d="m9 5 11 7-11 7Z"/>', pause: '<path d="M8 5v14M16 5v14"/>',
+    reset: '<path d="M5 5v14m14-14-10 7 10 7Z"/>',
+    loop: '<path d="m16 3 4 4-4 4M4 11V7h16M8 21l-4-4 4-4m12 0v4H4"/>',
+    more: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
+    close: '<path d="m6 6 12 12M18 6 6 18"/>'
+  };
+  return '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (paths[name] || paths.more) + '</svg>';
+}
+function detailTool(label: string, icon: string, tool: string) {
+  return btn(glyph(icon) + '<span>' + label + '</span>', "detailTool", s.panel && s.inspector === tool ? "selected" : "", tool);
+}
+function detailPanel(reading: boolean) {
+  const title = s.inspector;
+  const body = title === "校对" ? '<div class="bd-correction"><div class="bd-check-status"><strong>' + (s.doubts ? s.doubts + ' 处待复核' : '本轮演示已复核') + '</strong>' + btn(s.original ? "收起原图" : "原图对照", "original", "text") + '</div>' + (s.original ? original().replace('原图对照', '原图局部对照') : '') + (s.doubts ? '<div class="bd-check-task"><small>第 ' + (s.selected ? '7' : '2') + ' 小节 · 第 3 拍</small><h2>确认标记处的时值</h2><p class="muted">对照原图，检查这里是否为二分音符。</p></div>' : '<div class="bd-check-task"><h2>两处演示问题已确认</h2><p class="muted">可以继续改谱、调整调式或排版输出。</p>' + btn("调整调式 →", "detailTool", "primary", "调式") + '</div>') + '</div>'  :
+    title === "改谱" ? '<section class="control-section"><h2>局部修改</h2><p class="muted">点选谱面中的音符，再调整音高、时值或记号。</p><div class="bd-note-preview"><small>第 2 小节 · 第 3 拍</small><strong>5 −</strong><span>二分音符</span></div><div class="bd-note-actions">' + btn("音高 ＋", "notice", "secondary", "已演示音高调整入口，未修改真实音符。") + btn("音高 −", "notice", "secondary", "已演示音高调整入口，未修改真实音符。") + btn("修改时值", "notice", "secondary", "原型展示时值选择入口。") + btn("添加记号", "notice", "secondary", "原型展示记号选择入口。") + '</div><details><summary>源码、声部与其他工具</summary>' + expert() + '</details></section>' :
+    title === "调式" ? conversion() : title === "导出" ? output() : title === "练习设置" ?
+      '<section class="control-section"><p class="field-title">播放速度</p><div class="bd-options">' + ["0.5×", "0.75×", "1×", "1.25×"].map(v => btn(v, "detailSpeed", s.speed === v ? "selected" : "secondary", v)).join("") + '</div><p class="field-title">谱面字号</p><div class="bd-options">' + ["标准", "大字", "特大"].map(v => btn(v, "detailFont", s.font === v ? "selected" : "secondary", v)).join("") + '</div><label class="check"><input type="checkbox" data-field="lyrics" ' + (s.lyrics ? "checked" : "") + '>显示歌词</label><p class="muted">阅读设置在本次演示中保留。</p></section>' :
+      '<section class="control-section"><h2>这首曲子</h2><p class="muted">' + esc(s.title) + ' · ' + (s.applied ? '练习谱 1=' + esc(s.target) : '原谱 1=E♭') + '</p><div class="bd-more-list">' + btn("打印与分享", "detailTool", "secondary", "导出") + btn("阅读与播放设置", "detailTool", "secondary", "练习设置") + (reading ? "" : btn("查看源码与高级编辑", "detailTool", "secondary", "改谱")) + '</div></section>';
+  const footer = title === "校对" ? '<footer class="bd-panel-footer">' + (s.doubts ? btn("这处正确，下一处", "resolve", "primary") + btn("稍后处理", "later", "text") : btn("返回谱面", "closePanel", "primary full")) + '</footer>' : title === "调式" ? '<footer class="bd-panel-footer">' + btn("应用并预览", "apply", "primary full") + '</footer>' : '';
+  return '<aside class="bd-panel" role="region" aria-label="' + title + '工具"><div class="bd-panel-handle"></div><header class="bd-panel-head"><strong>' + title + '</strong>' + btn(glyph("close") + '<span class="sr-only">关闭工具</span>', "closePanel", "bd-icon") + '</header><div class="bd-panel-scroll">' + body + '</div>' + footer + '</aside>';
+}
+function detailPlayer() {
+  return '<footer class="bd-player" aria-label="练习播放控制"><div class="bd-progress"><span>' + (s.playing ? "0:08" : "0:00") + '</span><input type="range" min="0" max="33" value="' + (s.playing ? 8 : 0) + '" aria-label="播放进度（演示）" data-field="position"><span>0:33</span></div><div class="bd-transport">' +
+    btn('<strong>' + s.speed + '</strong><small>速度</small>', "detailTool", "bd-speed", "练习设置") +
+    btn(glyph("reset") + '<span class="sr-only">回到开头</span>', "detailReset", "bd-icon") +
+    btn(glyph(s.playing ? "pause" : "play") + '<span class="sr-only">' + (s.playing ? "暂停" : "播放") + '</span>', "play", "bd-play") +
+    btn(glyph("loop") + '<span class="sr-only">' + (s.looping ? "关闭循环" : "整首循环") + '</span>', "detailLoop", "bd-icon " + (s.looping ? "selected" : "")) +
+    btn('<strong>字</strong><small>阅读</small>', "detailTool", "bd-speed", "练习设置") + '</div></footer>';
+}
 export function VariantB() {
-  if (s.page === "library") return header(btn("返回曲谱", "back", "text")) + '<main class="b-library">' + sourceChooser() + library() + "</main>";
-  if (!s.loaded) return header() + '<main class="b-library">' + sourceChooser() + library() + "</main>";
-  if (scene === "practice" || s.space === "练习") return header() + '<main class="practice-space">' + practice() + "</main>";
-  return '<div class="b-shell ' + (s.panel ? "panel-open" : "") + '">' + header(btn("曲谱库", "library", "text")) + '<div class="b-docbar"><div class="doc-row">' + docHead() + '</div><nav class="mode-tabs">' + ["校对", "调整", "输出", "编辑"].map(t => btn(t, "inspector", s.inspector === t ? "active" : "", t)).join("") + btn("进入练习", "practice", "text", s.title) + '</nav></div><main class="b-work"><div class="canvas-column">' + (s.inspector === "校对" ? '<div class="canvas-tools">' + btn(s.original ? "收起原图" : "对照原图", "original", "secondary") + '<span class="muted">' + s.doubts + " 处待复核</span></div>" : "") + '<div class="canvas-pair">' + (s.inspector === "校对" && s.original ? original() : "") + score(true) + '</div>' + player() + '</div><aside class="inspector">' + btn("收起工具，查看谱面 ↑", "closePanel", "mobile-panel-close text full") + (s.inspector === "校对" ? correction() : s.inspector === "调整" ? conversion() : s.inspector === "输出" ? output() : '<section class="control-section"><h2>编辑曲谱</h2>' + expert() + "</section>") + '</aside></main></div>';
+  if (s.page === "library") return header(btn("返回曲谱", "back", "text")) + '<main class="b-library">' + library() + sourceChooser() + '</main>';
+  if (!s.loaded) return header() + '<main class="b-library">' + sourceChooser() + library() + '</main>';
+  const reading = s.space === "练习";
+  return '<section data-song="' + esc(s.title) + '" class="bd-shell ' + (reading ? 'is-practice ' : 'is-edit ') + (s.panel ? 'has-panel ' : '') + 'bd-font-' + (s.font === "特大" ? 'xl' : s.font === "大字" ? 'lg' : 'md') + '" aria-label="曲子详情"><header class="bd-appbar">' +
+    btn(glyph("back") + '<span class="sr-only">返回曲谱库</span>', "library", "bd-icon") +
+    '<div class="bd-song"><h1>' + esc(s.title) + '</h1><small>' + (s.saved ? '已模拟保存到曲谱库' : '当前编辑稿 · 未保存') + '</small></div>' +
+    (reading ? btn(glyph("more") + '<span class="sr-only">更多曲谱操作</span>', "detailTool", "bd-icon", "更多") : btn("保存", "save", "bd-save")) + '</header>' +
+    '<div class="bd-mode-row"><nav class="bd-mode" aria-label="曲子使用模式">' + btn("编辑", "detailMode", reading ? "" : "selected", "编辑") + btn("练习", "detailMode", reading ? "selected" : "", "练习") + '</nav><span class="bd-mode-hint">' + (reading ? '安心看谱，操作不会改动音符' : '在这首曲子里完成校对、调整和输出') + '</span></div>' +
+    '<div class="bd-workspace"><main class="bd-score-scroll"><div class="bd-score-context"><span>' + (s.applied ? '练习谱 · 1=' + esc(s.target) : '原谱 · 1=E♭') + ' · 4/4</span>' + (s.doubts ? btn('<i></i>' + s.doubts + ' 处待复核', reading ? 'detailMode' : 'detailTool', 'bd-review-link', reading ? '编辑' : '校对') : '<span class="bd-checked">本轮演示已复核</span>') + '</div><div class="bd-paper">' + score(true) + '</div>' + (reading ? '<p class="bd-end">— 本页结束 —</p>' : '<p class="bd-edit-help">' + (s.inspector === '改谱' && s.panel ? '点击谱面音符，查看局部修改工具' : '谱面保持在眼前，需要时再打开下方工具') + '</p>') + '</main>' +
+    (s.panel ? btn('<span class="sr-only">收起工具面板</span>', 'closePanel', 'bd-backdrop') + detailPanel(reading) : '') + '</div>' +
+    (reading ? detailPlayer() : '<nav class="bd-edit-dock" aria-label="编辑工具">' + detailTool('校对', 'check', '校对') + detailTool('改谱', 'edit', '改谱') + detailTool('调式', 'tune', '调式') + detailTool('导出', 'share', '导出') + '</nav>') + '</section>';
 }
 export function VariantC() {
   const spaceNav = '<nav class="space-tabs">' + btn("制作", "space", s.space === "制作" ? "active" : "", "制作") + btn("练习", "space", s.space === "练习" ? "active" : "", "练习") + "</nav>";
@@ -110,22 +155,27 @@ function comparePage() {
     ["A · 引导式制谱", "带入 → 校对 → 调整 → 排版交付", "第一次做谱的家长；每一步只出现当前要做的决定。", "优势：路径明确。代价：熟练用户可能觉得步骤多；已有数字谱需要允许跳步。"],
     ["B · 谱面工作台", "一份文档 → 按需打开任务面板", "反复做谱、边看边调的人；谱面常驻，任务可以自由切换。", "优势：反馈直接，最接近 Dolce。代价：仍需理解校对、调整、输出的区别；手机需要面板切换。"],
     ["C · 双空间", "制作工作台 ⇄ 只读练习空间", "一个人负责做谱，家人拿手机陪练；同一份曲谱，两种使用界面。", "优势：制作和练习互不干扰。代价：多一层导航，制作内的任务切换比 A 更自由。"]].map((x, i) => '<section class="comparison"><span class="eyebrow">' + (i ? "方案 " + ["A", "B", "C"][i - 1] : "上游基线") + '</span><h2>' + x[0] + '</h2><p class="ia-path">' + x[1] + '</p><p>' + x[2] + '</p><p class="muted">' + x[3] + "</p>" + (i ? btn("体验此方案 →", "variant", "primary", ["A", "B", "C"][i - 1]) : '<a class="link" href="https://lodebar2026.github.io/dolce/" target="_blank" rel="noreferrer">打开 Dolce 原版 ↗</a>') + "</section>").join("") +
-    '</div><section class="recommendation"><h2>待讨论的组合方向：A 的制作路径 + C 的独立练习空间</h2><p>按你的优先级，先让“导入到打印”走得清楚，再让家人能直接进入练习。B 可以保留为进入高级编辑后的工作台。</p><p class="muted">这是设计建议，尚未选定，不改产品数据模型、不增加账号或自动发布流程。</p></section><details><summary>比较证据与边界</summary><p>已实际打开 Dolce 在线首页及示例编辑器；固定基线为 Nota 所采用的 Dolce 0.8.3 / 2aab8ef。在线页面可能随上游更新。</p><p><a href="https://github.com/lodebar2026/dolce/blob/2aab8ef2333ba9e1a2a7b342080381fcacdd41ac/index.html" target="_blank" rel="noreferrer">固定版本界面结构</a> · <a href="https://github.com/ren2019/nota/blob/main/app/UPSTREAM.md" target="_blank" rel="noreferrer">Nota 底座记录</a></p><p>原型均使用内存演示数据；不是 Dolce 的像素复刻，也不承诺改变识谱准确率或格式能力。</p></details></main>';
+    '</div><section class="recommendation"><h2>本轮收敛方向：B 的曲子详情页 + 编辑 / 练习双态</h2><p>按你的反馈，将变化集中在单首曲子详情页内。编辑态按需打开校对、改谱、调式与导出；练习态保留谱面、试听和阅读设置，手机端使用固定底栏。</p><p class="muted">用户倾向 B 的大方向；本轮布局仍待走查，不实施到正式页面。A / C 保留供比较。</p></section><details><summary>比较证据与边界</summary><p>已实际打开 Dolce 在线首页及示例编辑器；固定基线为 Nota 所采用的 Dolce 0.8.3 / 2aab8ef。在线页面可能随上游更新。</p><p><a href="https://github.com/lodebar2026/dolce/blob/2aab8ef2333ba9e1a2a7b342080381fcacdd41ac/index.html" target="_blank" rel="noreferrer">固定版本界面结构</a> · <a href="https://github.com/ren2019/nota/blob/main/app/UPSTREAM.md" target="_blank" rel="noreferrer">Nota 底座记录</a></p><p>原型均使用内存演示数据；不是 Dolce 的像素复刻，也不承诺改变识谱准确率或格式能力。</p></details></main>';
 }
 function stateView() {
-  return '<details class="state-view"><summary>原型状态 · ' + variant + ' / ' + ({ new: "首次制谱", review: "继续校对", practice: "手机陪练" }[scene]) + ' / ' + (s.saved ? "已模拟保存" : "未保存") + '</summary><pre>' + esc(JSON.stringify({ variant, scene, viewport: phone ? "390px preview" : "responsive", ...s }, null, 2)) + "</pre></details>";
+  return '<details class="state-view"><summary>原型状态 · ' + variant + ' / ' + ({ new: "首次制谱", review: "继续校对", practice: "手机陪练" }[scene]) + ' / ' + (s.saved ? "已模拟保存" : "未保存") + '</summary><pre>' + esc(JSON.stringify({ variant, scene, viewport: phone ? phoneWidth + "px preview" : "responsive", ...s }, null, 2)) + "</pre></details>";
 }
 function render() {
+  const oldSong = root?.querySelector<HTMLElement>(".bd-shell")?.dataset.song;
+  const oldScroll = oldSong === s.title ? root?.querySelector<HTMLElement>(".bd-score-scroll")?.scrollTop || 0 : 0;
+  document.body.classList.toggle("detail-prototype", variant === "B" && s.loaded && s.page === "work" && !compare);
   const app = compare ? comparePage() : s.page === "find" ? findPage() : s.page === "candidate" ? header(btn("← 返回搜索", "backSearch", "text")) + '<main class="find-page"><span class="eyebrow">候选详情 · 演示</span><h1>' + esc(s.note) + '</h1><p>来源：OpenScore · 许可和声部在此确认</p><p class="muted">选择结果后再获取原谱、核对声部与数据。这里不把默认第一个声部当作检查结论。</p>' + btn("打开到制作空间", "adopt", "primary") + "</main>" : variant === "A" ? VariantA() : variant === "B" ? VariantB() : VariantC();
-  root.innerHTML = '<div class="lab"><strong>IA 原型 · 非正式页面</strong><span>仅交互演示，不执行识别、音频播放、转换、下载或入库</span><div>' + btn(phone ? "自适应宽度" : "手机 390", "phone") + btn("Dolce 对照", "compare") + '</div></div><div class="scene-bar"><span>体验场景</span>' +
-    [["new", "首次制谱"], ["review", "继续校对"], ["practice", "手机陪练"]].map(x => btn(x[1], "scene", scene === x[0] ? "active" : "", x[0])).join("") + '</div><div id="ia-device" class="' + (phone ? "phone" : "") + '"><div id="ia-app" class="variant-' + variant + '"><div class="screen">' + app + '</div></div></div>' +
+  root.innerHTML = '<div class="lab"><strong>IA 原型 · 非正式页面</strong><span>仅交互演示，不执行识别、音频播放、转换、下载或入库</span><div>' + btn(phone ? "自适应宽度" : "手机 390", "phone") + (phone ? '<label class="device-size"><span class="sr-only">预览宽度</span><select id="device-width" aria-label="预览宽度">' + [360,390,430].map(w => '<option value="' + w + '" ' + (phoneWidth === w ? 'selected' : '') + '>' + w + '</option>').join('') + '</select></label>' : '') + btn("Dolce 对照", "compare") + '</div></div><div class="scene-bar"><span>体验场景</span>' +
+    [["new", "首次制谱"], ["review", "继续校对"], ["practice", "手机陪练"]].map(x => btn(x[1], "scene", scene === x[0] ? "active" : "", x[0])).join("") + '</div><div id="ia-device" class="' + (phone ? "phone" : "") + '"' + (phone ? ' style="max-width:' + (phoneWidth + 24) + 'px"' : '') + '><div id="ia-app" class="variant-' + variant + '"><div class="screen">' + app + '</div></div></div>' +
     (s.notice ? '<div class="notice" role="status">' + esc(s.notice) + btn("×", "dismiss", "text") + "</div>" : "") + stateView() +
     '<nav class="prototype-switcher" aria-label="切换 IA 方案">' + btn("←", "prevVariant", "", "") + '<div><small>切换结构 · ← →</small><strong>' + variant + " · " + names[variant] + '</strong></div>' + btn("→", "nextVariant") + '<select id="variant-select" aria-label="选择方案">' + (["A", "B", "C"] as Variant[]).map(v => '<option value="' + v + '" ' + (v === variant ? "selected" : "") + '>' + v + "</option>").join("") + "</select></nav>";
+  const nextScroll = root.querySelector<HTMLElement>(".bd-score-scroll");
+  if (nextScroll) nextScroll.scrollTop = oldScroll;
   console.info("[THROWAWAY IA PROTOTYPE]", { variant, scene, ...s });
 }
 function url() {
   const u = new URL(location.href); u.searchParams.set("variant", variant);
-  u.searchParams.set("scene", scene); u.searchParams.set("phone", phone ? "1" : "0");
+  u.searchParams.set("scene", scene); u.searchParams.set("phone", phone ? "1" : "0"); u.searchParams.set("width", String(phoneWidth));
   history.replaceState(null, "", u); render();
 }
 function changeVariant(v: string) {
@@ -152,9 +202,15 @@ function action(act: string, val: string) {
   if (act === "next" || act === "prev") s.step = Math.max(0, Math.min(3, s.step + (act === "next" ? 1 : -1)));
   if (act === "resolve") { s.doubts = Math.max(0, s.doubts - 1); s.selected = 1; s.notice = s.doubts ? "已模拟确认一处，下一处已定位。" : "两处演示问题已确认，可以继续。"; }
   if (act === "locate") { s.original = true; s.selected = 1 - s.selected; s.notice = "已演示定位到原图和谱面的对应位置。"; }
-  if (act === "later") { s.step = 2; s.inspector = "调整"; s.notice = s.doubts ? "保留待复核标记，继续调整；不会假装校对通过。" : "校对已确认，继续调整练习谱。"; }
+  if (act === "later") { s.step = 2; s.panel = true; s.inspector = variant === "B" ? "调式" : "调整"; s.notice = s.doubts ? "保留待复核标记，继续调整；不会假装校对通过。" : "校对已确认，继续调整练习谱。"; }
   if (act === "inspector") { s.inspector = val; s.panel = true; }
   if (act === "closePanel") s.panel = false;
+  if (act === "detailMode") { s.space = val === "练习" ? "练习" : "制作"; scene = val === "练习" ? "practice" : "review"; s.panel = false; s.playing = false; }
+  if (act === "detailTool") { s.panel = !(s.panel && s.inspector === val); s.inspector = val; }
+  if (act === "detailSpeed") s.speed = val;
+  if (act === "detailFont") s.font = val;
+  if (act === "detailReset") { s.playing = false; s.notice = "已演示回到开头；没有实际音频。"; }
+  if (act === "detailLoop") { s.looping = !s.looping; s.notice = s.looping ? "已开启整首循环演示。" : "已关闭循环演示。"; }
   if (act === "original") s.original = !s.original;
   if (act === "code") s.sourceCode = !s.sourceCode;
   if (act === "apply") { s.applied = true; s.saved = false; s.notice = "仅演示应用后的界面状态，未执行真实音乐转换。"; }
@@ -165,9 +221,9 @@ function action(act: string, val: string) {
   if (act === "loop") s.notice = "循环入口演示：选段后循环选段，未选则循环整首。";
   if (act === "space") { s.space = val; s.page = "work"; scene = val === "练习" ? "practice" : "review"; }
   if (act === "practice") { s.title = val || s.title; s.space = "练习"; scene = "practice"; s.page = variant === "C" ? "reading" : "work"; }
-  if (act === "edit") { scene = "review"; s.space = "制作"; s.page = "work"; s.step = 1; s.inspector = "校对"; }
-  if (act === "open") { s.title = val; s.loaded = true; s.page = "work"; s.step = 1; s.inspector = "校对"; s.space = "制作"; }
-  if (act === "library") s.page = "library";
+  if (act === "edit") { s.panel = false; scene = "review"; s.space = "制作"; s.page = "work"; s.step = 1; s.inspector = "校对"; }
+  if (act === "open") { scene = "review"; s.panel = false; s.title = val; s.loaded = true; s.page = "work"; s.step = 1; s.inspector = "校对"; s.space = "制作"; }
+  if (act === "library") { s.page = "library"; s.panel = false; s.playing = false; }
   if (act === "find") { s.page = "find"; s.query = ""; s.searched = false; }
   if (act === "backSearch") s.page = "find";
   if (act === "search") { s.query = (root.querySelector("#find-query") as HTMLInputElement)?.value.trim() || ""; s.searched = !!s.query; }
@@ -180,11 +236,11 @@ function action(act: string, val: string) {
   if (act === "notice") s.notice = val;
   url();
 }
-export function mountIAPrototype() {
+export function mountIAPrototype(defaultVariant: Variant = "A") {
   const p = new URLSearchParams(location.search);
-  variant = (["A", "B", "C"].includes(p.get("variant") || "") ? p.get("variant") : "A") as Variant;
+  variant = (["A", "B", "C"].includes(p.get("variant") || "") ? p.get("variant") : defaultVariant) as Variant;
   scene = (["new", "review", "practice"].includes(p.get("scene") || "") ? p.get("scene") : "review") as Scene;
-  phone = p.get("phone") === "1"; s = fresh();
+  phone = p.get("phone") === "1"; phoneWidth = [360,390,430].includes(Number(p.get("width"))) ? Number(p.get("width")) : 390; s = fresh();
   if (scene === "new") { s.loaded = false; s.step = 0; }
   if (scene === "practice") { s.space = "练习"; s.page = variant === "C" ? "reading" : "work"; }
   document.title = "Nota IA 原型 · A / B / C";
@@ -197,6 +253,7 @@ export function mountIAPrototype() {
   root.addEventListener("change", e => {
     const f = e.target as HTMLInputElement;
     if (f.id === "variant-select") return changeVariant(f.value);
+    if (f.id === "device-width") { phoneWidth = Number(f.value); return url(); }
     const field = f.dataset.field; if (!field) return;
     if (field === "lyrics") s.lyrics = f.checked;
     else if (field === "mode") s.mode = f.value;
@@ -207,6 +264,7 @@ export function mountIAPrototype() {
   });
   root.addEventListener("submit", e => { e.preventDefault(); action("search", ""); });
   window.addEventListener("keydown", e => {
+    if (e.key === "Escape" && s.panel) { e.preventDefault(); action("closePanel", ""); return; }
     if ((e.target as Element)?.closest("input,textarea,select,[contenteditable]")) return;
     if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
       e.preventDefault(); action(e.key === "ArrowLeft" ? "prevVariant" : "nextVariant", "");

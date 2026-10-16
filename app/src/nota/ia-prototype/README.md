@@ -1,71 +1,65 @@
-# Nota IA throwaway prototype
+# Nota IA 探索原型
 
-Design question: which IA best supports making and printing sheet music first,
-phone practice second, and occasional deep editing third?
+设计问题：如何优先完成制谱打印，其次支持手机陪练，并保留偶尔深度编辑的能力？
 
-Priority confirmed by the user: **制谱打印 > 手机陪练 >> 深度编辑**.
-No variant has been selected. This is evidence for issue #6, not its implementation.
+用户优先级：**制谱打印 > 手机陪练 >> 深度编辑**。
+状态：用户倾向 B，继续迭代曲子详情内的编辑 / 练习双态；布局尚待反馈。只迭代原型，不实施正式页面。
+关联：https://github.com/ren2019/nota/issues/6
 
-## Three different structures
+## 本轮：B 的单首曲子详情
 
-| Variant | Primary role and scenario | Structure | Tradeoff to evaluate |
-| --- | --- | --- | --- |
-| A — 引导式制谱 | Parent preparing a score for printing | Bring in → check original → adapt practice score → layout and deliver | Clear next action; repeated makers may prefer skipping steps |
-| B — 谱面工作台 | Repeat maker adjusting while watching the score | Persistent canvas + contextual check/adapt/output/edit panel | Direct visual feedback; requires understanding task categories |
-| C — 制作 / 练习双空间 | One maker prepares, family members practice on phones | Making projects and tasks ⇄ read-only practice library and reader | Separates roles; adds a navigation layer |
+用户反馈：将变化与复杂度控制在一首曲子的详情页，分编辑态与练习态，手机上接近 App 的布局和体验。
+这替代了此前建议的 A 制作路径 + C 独立练习空间，未增加新的顶层空间。
 
-All variants share representative data and three resettable scenarios: first creation,
-continue checking, phone practice. Switching variants keeps in-memory settings.
-The bottom bar and Left/Right keys switch variants; text inputs retain their keys.
-The top phone control uses a 390 CSS-pixel container, not device emulation.
-The layouts also respond to the actual viewport.
+- 顶部：返回曲谱库、曲名、保存状态；编辑 / 练习切换。
+- 编辑态：谱面独立滚动，底部固定校对 / 改谱 / 调式 / 导出四个入口。
+- 练习态：只读谱面，底部固定进度、播放 / 暂停、回到开头、速度、整首循环、阅读设置。
+- 手机：工具在当前详情内从底部展开，面板内滚动，关闭后回到谱面；校对确认与转换应用固定在面板底部。
+- 桌面：相同工具改为右侧面板，谱面保留在左侧。
+- 模式切换保留当前内存稿、转换演示状态、阅读设置和同一首谱的滚动位置；进入编辑态停止模拟播放。
+- 可预览 360 / 390 / 430 CSS 像素容器；实际视口同样响应。容器预览不是设备仿真。
+- 所有播放、改音、转换、识别、保存、下载、上传都是演示入口，不执行真实功能。字号、歌词显示、面板、模式和循环选中状态可交互。
 
-## Dolce comparison
+运行：根目录 `npm run prototype:ia`。
+打开 `http://localhost:5188/?variant=B&scene=review&phone=1&width=390`。
+练习态：`scene=practice`；桌面自适应：`phone=0`。
+底部方向键切换 A/B/C；输入框不拦截方向键，Escape 收起工具。
 
-Nota's adopted baseline is Dolce 0.8.3 at
-`2aab8ef2333ba9e1a2a7b342080381fcacdd41ac`, recorded in `app/UPSTREAM.md`.
-Pinned source inspected:
+## 首轮三版的历史来源
+
+固定提交：`5e72e2fab2b6404f711962aef878712955502716`。
+
+| 方案 | 核心结构 | 待评估的取舍 |
+| --- | --- | --- |
+| A 引导式制谱 | 带入 → 校对 → 调整 → 排版交付 | 初次制作路径清楚，熟练用户可能嫌步骤多 |
+| B 谱面工作台 | 谱面常驻，按需切换任务面板 | 反馈直接，窄屏需重新规划工具与谱面的关系 |
+| C 双空间 | 制作项目与任务 ⇄ 只读练习空间 | 角色分离，但增加导航层 |
+
+A / C 继续保留供比较。三版共用内存演示数据，顶部场景按钮用于重置场景。
+当前改进集中在 B，尚未将原型代码提升到产品实现。
+
+## Dolce 对照证据
+
+Nota 采用 Dolce 0.8.3，固定提交
+`2aab8ef2333ba9e1a2a7b342080381fcacdd41ac`，见 `app/UPSTREAM.md`。
+已检查固定界面源码：
 https://github.com/lodebar2026/dolce/blob/2aab8ef2333ba9e1a2a7b342080381fcacdd41ac/index.html
 
-Also opened the live homepage and example editor at
-https://lodebar2026.github.io/dolce/ on 2026-10-16. Live upstream can change.
-Its core flow is file → editing workspace → save/export. Preserve its original-image
-comparison, source/visual editing, score rendering and format capabilities. Nota's
-family library, practice adaptation and read-only practice need an explicit task layer.
-The prototype's comparison page distinguishes these structures.
+2026-10-16 也实际打开了在线首页与示例编辑器：
+https://lodebar2026.github.io/dolce/
+在线版本可能随上游更新，不混同固定采用版本。
 
-Working hypothesis for user evaluation: A's guided making flow + C's independent
-practice space, with B available as an advanced editing workspace. **Not a verdict.**
+上游核心是文件 → 编辑工作台 → 保存 / 导出。保留其原图对照、源码 / 可视化编辑、谱面与格式能力。
+本轮 B 以此为基础，在单份曲谱详情内部组织制作和练习的不同操作。
 
-## Run
+## 隔离与验证
 
-From repository root:
+专用 Vite 配置不加载曲谱库/API 中间件。正式启动入口要求 `import.meta.env.DEV` 与 variant 参数才导入原型；正式构建会移除原型导入。
+独立入口 `standalone.ts` 可通过 esbuild 打包，将生成的 CSS / JS 内联为单文件 HTML，默认打开 B。
 
-```sh
-npm --prefix app ci --ignore-scripts --no-audit --no-fund
-npm run prototype:ia
-```
+- `npm run build`：TypeScript + Vite 通过；保留上游既有分包警告。
+- 原生 Edge：编辑 / 练习切换、调式演示应用后切换保留、手机面板收放、字号 / 速度、谱面滚动与固定播放栏均已操作。
+- 360 / 390 / 430 容器目视检查；桌面右侧面板检查。
+- 原型不替代真实 iPhone / Android PWA 的触控、软键盘、音频、安全区及分享 / 打印验收；issue UI #22 仍待设备验收。
 
-Open `http://localhost:5188/?variant=A&scene=new`.
-Other parameters: `variant=B|C`, `scene=review|practice`, `phone=1`.
-The dedicated Vite configuration has no library/API middleware.
-The production bootstrap gate requires `import.meta.env.DEV` and a variant parameter.
-The standard production build removes the prototype import.
-
-## Scope and verification
-
-All state is memory-only. Refresh resets it. No file selection/upload, recognition,
-real score conversion, audio, downloads or library writes are performed.
-The source image and number score are layout placeholders. Chinese search results
-are examples for evaluating the desired UX, not a backend search fix or coverage claim.
-No accounts or roles/permissions system is proposed by the role-specific interfaces.
-
-Manual native Edge QA: A check → adapt → deliver; B task switching and 390px
-collapsed/expanded inspector; C making/practice library and reader; search empty,
-Chinese query, candidate and return with query/results intact. Desktop and 390px
-container inspected visually. Not a physical iPhone/Android/PWA verification.
-`npm run build` passed (TypeScript + Vite; existing chunk warnings).
-
-To bundle a self-contained HTML artifact, bundle `standalone.ts` with esbuild,
-then inline the emitted CSS and JS in a UTF-8 HTML document with viewport metadata.
-No prototype code should be promoted to main before the IA decision.
+刷新重置内存数据。谱面与原图都是占位演示，中文查谱也是目标体验演示，不代表后端检索问题已修复。
