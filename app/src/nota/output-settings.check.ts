@@ -30,7 +30,7 @@ draft.brand = true;
 equal(readFooterOptions(), { brand: false, date: true, pageNumbers: false }, "Canceling a footer draft leaves old saved choices intact");
 writeFooterOptions(draft);
 equal(readFooterOptions(), { brand: true, date: true, pageNumbers: false }, "Confirmed choices are visible to either entry when reopened");
-equal(footerText({ ...exportFooterContext(), date: "2026-10-16" }, 1, 3), { left: "Typeset with Nota · 2026-10-16", right: "" }, "Export reads the same saved footer choices");
+equal(footerText({ ...exportFooterContext(), date: "2026-10-16" }, 1, 3), { left: "", right: "Typeset with Nota\nA simple way to make sheet music.\n2026-10-16" }, "Export reads the same saved footer choices");
 equal(loadPersistedSettings()?.styleLayers, oldStyle, "Footer changes preserve practice style and paper");
 storage.set("nota.exportFooter.v1", "broken");
 equal(readFooterOptions(), { brand: true, date: true, pageNumbers: true }, "Malformed footer state keeps existing defaults");

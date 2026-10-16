@@ -1,3 +1,4 @@
+import { projectScoreFooter, scoreFooterSource } from "../nota/score-footer-source";
 // 唯一的排版器 `ScorePainter`：按请求排版（简谱原样 / 展开、五线谱 / 混排），持有提交后的结果、
 // 页面渲染（DOM 映射）、点选与播放高亮索引。排页算法在各自模块（`original/compose/`、
 // `mixed/staffpages.ts`），SVG 出口在 `render.ts`，这里只管请求版本、结果提交与交互状态。
@@ -189,11 +190,14 @@ export class ScorePainter {
     return this.original?.plans ?? null;
   }
 
-  /** 导出 PPTX 用的页面（`editor/pptx.ts::buildPptx`）：简谱排的那一份；还没排过简谱时为空。 */
-  get pptxSource(): { pages: readonly Group[]; stackGap: number; pageWidth: number; pageHeight: number } {
+  private _footerSources: string[] = [];
+  footerSource(index: number): string { return this._footerSources[index] ?? ""; }
+
+  /** 导出 PPTX 用的页面及对应来源，均为同次排版的快照。 */
+  get pptxSource(): { pages: readonly Group[]; stackGap: number; pageWidth: number; pageHeight: number; footerSources: readonly string[] } {
     return {
       pages: this.original?.pages ?? [], stackGap: this.original?.metrics.style.vertical.stackGap ?? 0,
-      pageWidth: this.pageWidth, pageHeight: this.pageHeight,
+      pageWidth: this.pageWidth, pageHeight: this.pageHeight, footerSources: this._footerSources,
     };
   }
 
@@ -247,7 +251,8 @@ export class ScorePainter {
     const paper = resolvePaper(sheet.page);
     // 展开档：投影片纸（展开档样式的 `page.size`）
     const slide = req.view === "expanded" ? { width: sheet.page.size?.[0] ?? 960, height: sheet.page.size?.[1] ?? 540, continuous: false } : null;
-    const doc = req.accidentalMode ? projectJianpuOutput(req.doc, req.accidentalMode) : req.doc;
+    const sourceDoc = projectScoreFooter(req.doc);
+    const doc = req.accidentalMode ? projectJianpuOutput(sourceDoc, req.accidentalMode) : sourceDoc;
     const r = layoutJianpu(doc, {
       style: jianpuStyleOf(sheet),
       // 长图：宽与旧简谱引擎的长图同一张（500 首那张纸的宽），高由内容定
@@ -268,13 +273,14 @@ export class ScorePainter {
         root,
         geometry: pageGeometry(r.width, r.height, 1),
         renderer: "jianpu",
-        songIndexes: [r.placed.pages[i]?.song ?? 0],
+        songIndexes: [...new Set([r.placed.pages[i]?.song ?? 0, ...(r.placed.pages[i]?.headers?.map(header => header.song) ?? [])])],
       })),
       diagnostics: [],
       staffPlacements: [],
       jianpuLineStarts: r.lineStarts,
     };
     return () => {
+      this._footerSources = result.pages.map(page => [...new Set(page.songIndexes.map(index => scoreFooterSource(req.doc.songs[index])).filter(Boolean))].join(" · "));
       this.original = r;
       this.staff = null;
       this.jianpuView = req.view;
@@ -293,7 +299,8 @@ export class ScorePainter {
     const options = staffOptionsOf(meta, req.style);
     options.hideBarNumber = req.hideBarNumber;
     options.page = req.page;
-    const doc = req.view === "mixed" && req.accidentalMode ? projectJianpuOutput(req.doc, req.accidentalMode) : req.doc;
+    const sourceDoc = projectScoreFooter(req.doc);
+    const doc = req.view === "mixed" && req.accidentalMode ? projectJianpuOutput(sourceDoc, req.accidentalMode) : sourceDoc;
     const score = layoutStaff(doc, options);
     const { pages, placed } = layoutStaffPages(score, req.view === "mixed", req.jianpuPart ?? 0);
     const d = score.defaults;
@@ -307,6 +314,7 @@ export class ScorePainter {
       jianpuLineStarts: null,
     };
     return () => {
+      this._footerSources = pages.map(() => req.doc.songs[0] ? scoreFooterSource(req.doc.songs[0]) : "");
       this.staff = { score, pages, placed };
       this.original = null;
       this.result = result;

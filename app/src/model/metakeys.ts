@@ -18,6 +18,7 @@ export interface MetaKeyDef {
 }
 
 export const META_KEYS: readonly MetaKeyDef[] = [
+  { key: "source", label: "来源说明" },
   { key: "title-alt", label: "英文标题", role: "titleAlt" },
   { key: "scripture", label: "题下经文", role: "scripture" },
   { key: "scripture-ref", label: "题下经文出处", role: "scriptureRef" },

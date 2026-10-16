@@ -2630,6 +2630,7 @@ export class App implements OmrHost, PlaybackHost, FormatHost, FormatSwitchHost,
   tryRestoreLastFile(): Promise<boolean> { return this.files.tryRestoreLastFile(); }
   openFile(): Promise<boolean> { return this.files.openFile(); }
   /** Nota's primary save action; source-file downloads remain in Save As. */
+  exportSourceDescription = "";
   saveToLibrary: (() => Promise<void>) | null = null;
   saveFile(): Promise<void> { return this.saveToLibrary ? this.saveToLibrary() : this.files.saveFile(); }
   saveFileAs(): Promise<void> { return this.files.saveFileAs(); }

@@ -472,3 +472,31 @@ for (const mode of ["explicit", "measure"] as const) {
     equal(flatCount(), view === "mixed" ? chordStaffFlats + 2 : 2, `${mode}/${view}: required final melody flat is printed`);
   }
 }
+
+// Footer descriptions are kept in the raw model and emitted metadata, while
+// the page header shows only real titles and author credits.
+const footerDoc = parse123("T:来源排版检查\nT:单段旋律 · 依 AirDrop 原图校正\nT:保留的普通副标题\nC:保留的作者\nK:1=C\nM:4/4\n1 2 3 4 |]");
+const footerRaw = JSON.stringify(footerDoc);
+const footerMusic = [...toMidi(playSourceOf(footerDoc)!)];
+for (const view of ["original", "expanded"] as const) {
+  painter.loadSync({ view, doc: footerDoc, style: computeStyleForPaper([view === "expanded" ? THEMES.projection : THEMES.print], { mode: view, engine: "jianpu" }) });
+  const text = painter.result!.pages.flatMap(p => textOf(p.root));
+  if (text.includes("单段旋律 · 依 AirDrop 原图校正")) throw new Error("Version/source text must not remain a large subtitle");
+  if (!text.includes("保留的普通副标题")) throw new Error("Ordinary subtitle must remain in the header");
+  if (!text.some(t => t.includes("保留的作者"))) throw new Error("Author credit must remain in the header");
+  equal(painter.footerSource(0), "单段旋律 · 依 AirDrop 原图校正", "Source follows rendered pages");
+}
+const footerDeck = unzipSync(await buildPptx(painter.pptxSource, 0xffffffff, { options: { brand: true, date: true, pageNumbers: true }, date: "2026-10-16" }));
+const footerSlide = strFromU8(footerDeck["ppt/slides/slide1.xml"]!);
+if (!footerSlide.includes("A simple way to make sheet music.") || !footerSlide.includes("单段旋律 · 依 AirDrop 原图校正")) throw new Error("PPTX must include the shared slogan and source footer");
+if (!/algn="r"/.test(footerSlide) || !/algn="l"/.test(footerSlide)) throw new Error("PPTX footer columns must use left and right alignment");
+equal(JSON.stringify(footerDoc), footerRaw, "Footer projection preserves raw model/source/IDs");
+equal([...toMidi(playSourceOf(footerDoc)!)], footerMusic, "Footer projection preserves actual music playback");
+const savedSource = parse123("T:持久来源\nI:meta source 公开谱集 · 校对说明\nK:1=C\nM:4/4\n1 2 3 4 |]");
+const { scoreFooterSource } = await import("./score-footer-source");
+equal(scoreFooterSource(loadScoreDoc(scoreDocToMusicXml(savedSource)).songs[0]), "公开谱集 · 校对说明", "Source metadata survives MusicXML serialization/reopening");
+console.log("Export footer: rendered headers, PPTX branding/source, source round-trip and music preserved.");
+const sourceBook = parse123("X:1\nT:第一首\nI:meta source 第一来源\nK:1=C\nM:4/4\n1 2 3 4 |]\nX:2\nT:第二首\nI:meta source 第二来源\nK:1=C\nM:4/4\n5 6 7 1' |]");
+painter.loadSync({ view: "original", doc: sourceBook, style: null });
+equal(painter.pageCount, 1, "Continuous tunebook remains one long page");
+equal(painter.footerSource(0), "第一来源 · 第二来源", "All songs in a continuous page retain their sources");
