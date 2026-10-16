@@ -22,7 +22,7 @@ import { STACK_GAP_DEFAULT } from "../engrave/stack";
 import { walkPageItem, type ItemVisitor } from "../layout/walk";
 
 
-import { exportFooterContext, footerText, footerPlacement, FOOTER_STYLE } from "../nota/export-footer";
+import { exportFooterContext, layoutFooter, footerPlacement, FOOTER_STYLE, type FooterContext } from "../nota/export-footer";
 
 const EMU = (v: number) => Math.round(v * 12700); // 1 pt = 12700 EMU
 
@@ -409,30 +409,32 @@ function buildDeck(slides: string[], wEmu: number, hEmu: number): Zippable {
 /** buildPptx 只用到页面树与页面尺寸，与哪个引擎排的无关（`ScorePainter.pptxSource`：旧简谱引擎或简谱引擎那一份）。 */
 export interface PptxSource {
   pages: readonly Group[];
+  footerSources?: readonly string[];
   /** 附点离数字的那道空（engrave/stack.ts）；没有就取缺省。 */
   stackGap?: number;
   pageWidth: number;
   pageHeight: number;
 }
 
-export async function buildPptx(src: PptxSource, bgColor = 0xffffffff): Promise<Uint8Array> {
+export async function buildPptx(src: PptxSource, bgColor = 0xffffffff, context: FooterContext = exportFooterContext()): Promise<Uint8Array> {
   const font = await loadBravura();
-  const context = exportFooterContext();
   const slides = src.pages.map((pg, index) => {
     const shapes: Shape[] = [];
     collectShapes(pg, font, shapes, src.stackGap ?? STACK_GAP_DEFAULT);
-    const labels = footerText(context, index, src.pages.length);
+    const source = [src.footerSources?.[index], context.source].filter(Boolean).join(" · ");
+    const layout = layoutFooter({ ...context, source }, index, src.pages.length, false, src.pageWidth);
     const bottom = Math.max(0, ...shapes.map(s => s.y + s.h));
-    const placement = footerPlacement(src.pageHeight, bottom, false, !!(labels.left || labels.right));
+    const placement = footerPlacement(src.pageHeight, bottom, false, layout.rows > 0, layout.rows);
     if (placement.scale < 1) for (const s of shapes) {
       s.x *= placement.scale; s.y *= placement.scale; s.w *= placement.scale; s.h *= placement.scale;
       if (s.kind === "text") s.size *= placement.scale;
       else { s.strokeW *= placement.scale; for (const seg of s.segs) seg.pts = seg.pts.map(v => v * placement.scale); }
     }
-    for (const [text, align] of [[labels.left, "l"], [labels.right, "r"]] as const) if (text) shapes.push({
-      kind: "text", x: FOOTER_STYLE.margin, y: placement.baseline - FOOTER_STYLE.size,
-      w: src.pageWidth - 2 * FOOTER_STYLE.margin, h: FOOTER_STYLE.size,
-      text, align, size: FOOTER_STYLE.size, colorHex: FOOTER_STYLE.color.slice(1), bold: false, family: "Arial",
+    for (const item of layout.labels) shapes.push({
+      kind: "text", x: item.x, y: placement.baseline - (layout.rows - 1 - item.row) * FOOTER_STYLE.leading - FOOTER_STYLE.size,
+      w: item.width, h: FOOTER_STYLE.size,
+      text: item.text, align: item.align === "right" ? "r" : "l", size: FOOTER_STYLE.size,
+      colorHex: FOOTER_STYLE.color.slice(1), bold: false, family: "Arial",
     });
     return slideXml(shapes, bgColor);
   });

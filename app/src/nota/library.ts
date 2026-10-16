@@ -1,3 +1,4 @@
+import { provenanceFooterSource } from "./score-footer-source";
 import type { App, ViewMode } from "../editor/app";
 import type { DocFormatId } from "../editor/formats";
 import { packProject } from "../editor/omrproject";
@@ -140,6 +141,7 @@ export function mountLibrary(app: App, revealWorkspace: () => void) {
       await app.whenIdle();
       current = saved;
       source = saved.source;
+      app.exportSourceDescription = provenanceFooterSource(source);
       importedTitle = undefined;
       app.markClean();
       app.setStatus(`已从曲谱库打开「${saved.title}」。${saved.source ? "来源在导入时已独立对照，后续编辑请另行复核。" : ""}`);
@@ -226,6 +228,7 @@ export function mountLibrary(app: App, revealWorkspace: () => void) {
     app.adoptText(candidate.format, candidate.text, null); app.formats.use(null);
     await app.setViewMode(candidate.format === 'musicxml' ? 'staff' : 'expanded');
     await app.whenIdle(); current = null; source = candidate.source; importedTitle = candidate.title;
+    app.exportSourceDescription = provenanceFooterSource(source);
     app.setStatus(`已打开「${candidate.title}」候选。来源数据对照通过；请核对版本与谱面，确认后保存到曲谱库。`);
     revealWorkspace();
   }
@@ -233,5 +236,5 @@ export function mountLibrary(app: App, revealWorkspace: () => void) {
   search.addEventListener("input", render);
   root.querySelector("#library-refresh")!.addEventListener("click", () => void refresh());
   void refresh();
-  return { save, refresh, detach: () => { current = null; source = undefined; importedTitle = undefined; } };
+  return { save, refresh, detach: () => { current = null; source = undefined; importedTitle = undefined; app.exportSourceDescription = ""; } };
 }

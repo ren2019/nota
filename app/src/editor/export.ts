@@ -136,7 +136,8 @@ function exportPage(app: App, index: number, context: FooterContext): SVGSVGElem
   const mixed = app.mode === "mixed";
   const painter = mixed ? app.mixedPainter! : app.painter;
   const continuous = !mixed && app.viewMode !== "expanded" && !resolvePaper(app.paperState("jianpu").page);
-  return withExportFooter(painter.renderPage(index), painter.pageSize(index), index, painter.pageCount, continuous, context);
+  const source = [painter.footerSource(index), app.exportSourceDescription].filter(Boolean).join(" · ");
+  return withExportFooter(painter.renderPage(index), painter.pageSize(index), index, painter.pageCount, continuous, { ...context, source });
 }
 
 /** Nota: rasterize freshly painted pages so selection and edit marks stay out. */
@@ -204,7 +205,7 @@ export async function exportPptx(app: App): Promise<void> {
   await app.whenIdle();
   // 一律按**展开档**出片（两种格式同一条展开档排版）：屏幕在原样档也导得出 PPT 观感，
   // 切到展开档预览则是所见即所得。字号/纸张取展开档那一套设置。
-  const bytes = await buildPptx(pptxPainter(app).pptxSource, app.colorsOf("expanded").bg);
+  const bytes = await buildPptx(pptxPainter(app).pptxSource, app.colorsOf("expanded").bg, { ...exportFooterContext(), source: app.exportSourceDescription });
   await saveBytes(
     bytes,
     `${baseName(app)}.pptx`,
