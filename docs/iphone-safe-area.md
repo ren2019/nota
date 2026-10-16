@@ -28,7 +28,7 @@
 - 编辑底栏同时补上左右安全区避让；按钮尺寸和 Dolce 专业工作区不改动，viewport 配置保持原样。
 - 通过隔离临时 HTTP 曲谱库操作真实 App，Chromium / WebKit 共检查 36 个布局：360 / 390 / 430、844 横屏和 1280 宽屏，覆盖上述三种底栏。没有全页横向溢出、按钮越出视口或未捕获浏览器错误；窄屏、横屏及安全区场景已目视核对。
 - Chromium 另用 [DevTools 官方安全区覆盖接口](https://chromedevtools.github.io/devtools-protocol/tot/Emulation/#method-setSafeAreaInsetsOverride) 验证浏览器环境值：bottom 为 34px 时实际底部 padding 为 50px，横屏 bottom 为 21px 时为 37px，左右 44px 时编辑底栏两侧实际避让 44px。这是环境变量覆盖测试，数值不是产品中写死的设备尺寸。
-- 正式构建通过；证据在忽略的 `local/qa/safe-area/`。本轮未部署，没有修改生产曲谱库。构建只在独立工作区执行。
+- 正式构建通过；开发验证证据在独立工作区忽略的 `local/qa/safe-area/`，没有修改生产曲谱库。随后按用户新的明确部署指令，`71a61a7` 已合入 main 并发布；正式入口的横竖屏底栏已冒烟，见[发布记录](acceptance/current-release.md)。
 
 ## 验证边界
 

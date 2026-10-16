@@ -2,6 +2,8 @@
 
 本轮从文档整理基线 `3bdd866` 在独立集成分支追加验收，跟踪 [#19](https://github.com/ren2019/nota/issues/19) 和父 [#9](https://github.com/ren2019/nota/issues/9)。本记录补充[原整合记录](nota-ia-spec-9.md)，不把历史「待验」追改成当时已通过，也不表示自动部署。完整 Dolce 原版对照由 [#11 记录](dolce-editor-parity.md) 单独覆盖。
 
+后续发布：上述修复与底栏微调已按用户新的明确指令合入 main 并部署，生产功能版本为 `71a61a7`；正式入口主流程与数据完整性核对通过，见[当前发布与验收](current-release.md)。下文保留隔离验收的执行范围及当时状态。
+
 ## 验收边界与重跑
 
 `npm run test:journeys` 启动独立本地 Vite 服务和临时目录中的真实 HTTP 曲谱库，使用 Playwright Chromium / WebKit 操作正式 App 的可见入口、CodeMirror、实际排版和实际本地 OMR。最终断言取自同一 App 当前文档、公开曲谱库 API 与下载文件。没有替换编辑器、转换或识别引擎。
