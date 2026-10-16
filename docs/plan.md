@@ -63,3 +63,7 @@
 ## 全局简谱输出设置（已在集成分支完成）
 
 全局简谱输出设置及两种升降号模式已按 [GitHub issue #1](https://github.com/ren2019/nota/issues/1) 完成，代码位于 `integration/global-jianpu-output`。两轴审查发现已修复；测试、构建及 Safari 实际导出通过，详见 [验收记录](global-jianpu-output-acceptance.md)。本次未合入 main 或更新正式部署，后续状态以 GitHub Issues 为准。
+
+## 乐谱页脚与来源排版（已在集成分支完成）
+
+[GitHub issue #7](https://github.com/ren2019/nota/issues/7) 已实现：底部右侧品牌与官方 slogan，左侧小字来源；保留原稿、普通副标题和作曲者。两轴审查完成且发现已修复，测试、构建与 Safari PDF/PNG/PPTX 实际验收通过，详见 [验收记录](export-footer-source-acceptance.md)。代码位于 `integration/export-footer-source`，未合入 main 或更新正式部署；#6 的应用界面走查另行跟踪。
