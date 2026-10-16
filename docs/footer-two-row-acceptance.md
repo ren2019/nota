@@ -2,7 +2,7 @@
 
 对应 [GitHub #8](https://github.com/ren2019/nota/issues/8)，作为 #7 完成后的后续排版调整。用户已确认验收方式并调用 implement-spec 授权实施。
 
-基线 `c4ca56a`，实现 `b3b9f0d`，集成 `16da9d5`，最终图形位置调整 `8be6505`；分支 `integration/footer-two-row`。未合入 main 或更新正式部署，#6 的其他 UI 事项不在本轮范围。
+基线 `c4ca56a`，实现 `b3b9f0d`，集成 `16da9d5`，最终图形位置调整 `8be6505`；原集成分支为 `integration/footer-two-row`。经用户批准，现已合入 main，合入后 `npm test` 通过；正式部署未更新。#6 的其他 UI 事项不在本轮范围。
 
 ## 实现
 

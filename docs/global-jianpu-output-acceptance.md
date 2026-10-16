@@ -1,6 +1,6 @@
 # 全局简谱输出设置验收
 
-2026-10-16；规格与状态以 [GitHub #1](https://github.com/ren2019/nota/issues/1) 及子任务 #2–#5 为准。实现集中在 `integration/global-jianpu-output`；本次不合入 main、不更新正式部署。
+2026-10-16；规格与状态以 [GitHub #1](https://github.com/ren2019/nota/issues/1) 及子任务 #2–#5 为准。原集成分支为 `integration/global-jianpu-output`；经用户批准，现已合入 main，正式部署未更新。
 
 ## 已实现
 

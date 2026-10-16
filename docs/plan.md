@@ -60,14 +60,14 @@
 
 《莫斯科郊外的晚上》保持音高重记的重复升降号已改为逐音显式显示，保留必要还原号与原有音高。复现、原因及验证边界见 [NOTA-003](issues/003-renotation-accidentals.md)。
 
-## 全局简谱输出设置（已在集成分支完成）
+## 全局简谱输出设置（已合入 main）
 
-全局简谱输出设置及两种升降号模式已按 [GitHub issue #1](https://github.com/ren2019/nota/issues/1) 完成，代码位于 `integration/global-jianpu-output`。两轴审查发现已修复；测试、构建及 Safari 实际导出通过，详见 [验收记录](global-jianpu-output-acceptance.md)。本次未合入 main 或更新正式部署，后续状态以 GitHub Issues 为准。
+全局简谱输出设置及两种升降号模式已按 [GitHub issue #1](https://github.com/ren2019/nota/issues/1) 完成并合入 main。两轴审查发现已修复；测试、构建及 Safari 实际导出通过，详见 [验收记录](global-jianpu-output-acceptance.md)。正式部署未更新，后续状态以 GitHub Issues 为准。
 
-## 乐谱页脚与来源排版（已在集成分支完成）
+## 乐谱页脚与来源排版（已合入 main）
 
-[GitHub issue #7](https://github.com/ren2019/nota/issues/7) 已实现：底部右侧品牌与官方 slogan，左侧小字来源；保留原稿、普通副标题和作曲者。两轴审查完成且发现已修复，测试、构建与 Safari PDF/PNG/PPTX 实际验收通过，详见 [验收记录](export-footer-source-acceptance.md)。代码位于 `integration/export-footer-source`，未合入 main 或更新正式部署；#6 的应用界面走查另行跟踪。
+[GitHub issue #7](https://github.com/ren2019/nota/issues/7) 已实现并合入 main：来源小字显示，保留原稿、普通副标题和作曲者；品牌位置以后续 #8 为准。两轴审查完成且发现已修复，测试、构建与 Safari PDF/PNG/PPTX 实际验收通过，详见 [验收记录](export-footer-source-acceptance.md)。正式部署未更新；#6 的应用界面走查另行跟踪。
 
-## 两行页脚与图形标志（已在集成分支完成）
+## 两行页脚与图形标志（已合入 main）
 
-[GitHub issue #8](https://github.com/ren2019/nota/issues/8) 按用户后续决定调整为：首行来源左、日期/页码右，次行图形标志、署名与 slogan 靠左。保留三开关及长来源保护，两轴审查无发现，测试、构建及 Safari 实际导出通过。代码位于 `integration/footer-two-row`，详见 [验收记录](footer-two-row-acceptance.md)；本轮未合入 main 或更新正式部署。
+[GitHub issue #8](https://github.com/ren2019/nota/issues/8) 已合入 main：首行来源左、日期/页码右，次行 `Typeset with [图形] Nota · A simple way to make sheet music.` 整组靠左。保留三开关及长来源保护，两轴审查无发现，测试、构建及 Safari 实际导出通过，详见 [验收记录](footer-two-row-acceptance.md)。图形仍为静态导出副本，未实现与应用图标自动同步。正式部署未更新。

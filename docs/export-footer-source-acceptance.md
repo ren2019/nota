@@ -2,7 +2,7 @@
 
 对应 [GitHub issue #7](https://github.com/ren2019/nota/issues/7)。用户调用 implement-spec 后实施，范围仅为乐谱页脚与来源排版；#6 的应用界面走查另行跟踪。
 
-代码基于全局简谱输出设置的 `4847ab1`，位于 `integration/export-footer-source`。实现提交 `ce242b3`，审查修复 `521fd03`，集成至 `25bc19d`。本轮未合入 main 或更新正式部署。
+代码基于全局简谱输出设置的 `4847ab1`，原集成分支为 `integration/export-footer-source`。实现提交 `ce242b3`，审查修复 `521fd03`，集成至 `25bc19d`。经用户批准，现已合入 main，正式部署未更新；最终品牌位置以后续 #8 为准。
 
 ## 实现结果
 
