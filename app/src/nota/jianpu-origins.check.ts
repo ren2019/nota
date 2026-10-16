@@ -523,3 +523,41 @@ for (const [path, bytes] of Object.entries(boundedDeck).filter(([path]) => /^ppt
 }
 equal(scoreFooterSource(giantFooterDoc.songs[0]), giantDescription, "Abbreviated exports preserve the complete source in the editable model");
 console.log("Export footer: extreme sources bounded in actual PPTX, complete metadata retained.");
+
+// Actual exported decks embed the monochrome symbol and keep the two rows in
+// reading order under every existing setting combination.
+const twoRowDoc = parse123("T:两行页脚\nI:meta source 公开谱集\nK:1=C\nM:4/4\n1 2 3 4 |]");
+painter.loadSync({ view: "expanded", doc: twoRowDoc, style: computeStyleForPaper([THEMES.projection], { mode: "expanded", engine: "jianpu" }) });
+for (const brand of [false, true]) for (const date of [false, true]) for (const pageNumbers of [false, true]) {
+  const bytes = await buildPptx(painter.pptxSource, 0xffffffff, { options: { brand, date, pageNumbers }, date: "2026-10-16" });
+  const deck = unzipSync(bytes);
+  const xml = new DOMParser().parseFromString(strFromU8(deck["ppt/slides/slide1.xml"]!), "application/xml");
+  const shapes = Array.from(xml.getElementsByTagName("p:sp"));
+  const markShapes = shapes.filter(shape => shape.getElementsByTagName("a:custGeom").length && Array.from(shape.getElementsByTagName("a:srgbClr")).some(c => c.getAttribute("val") === "888888"));
+  equal(markShapes.length, brand ? 3 : 0, "PPTX embeds the three vector paths of the monochrome Nota symbol only when branding is enabled");
+  const footerShapes = shapes.filter(shape => Array.from(shape.getElementsByTagName("a:rPr")).some(pr => pr.getAttribute("sz") === "750"));
+  const label = (text: string) => footerShapes.find(shape => shape.getElementsByTagName("a:t")[0]?.textContent === text);
+  const sourceLabel = label("公开谱集");
+  if (!sourceLabel) throw new Error("Source remains visible under all brand/date/page options");
+  const position = (shape: typeof shapes[number]) => {
+    const offset = shape.getElementsByTagName("a:off")[0]!;
+    return { x: Number(offset.getAttribute("x")), y: Number(offset.getAttribute("y")) };
+  };
+  const metaLabel = [date ? "2026-10-16" : "", pageNumbers ? `1 / ${painter.pageCount}` : ""].filter(Boolean).join(" · ");
+  const metaShape = metaLabel ? label(metaLabel) : undefined;
+  if (metaLabel && (!metaShape || position(metaShape).y !== position(sourceLabel).y)) throw new Error("Date and pages share the source's first-row baseline");
+  const brandLabel = label("Typeset with Nota · A simple way to make sheet music.");
+  if (!!brandLabel !== brand) throw new Error("Brand setting controls both brand and exact slogan");
+  if (brandLabel) {
+    if (position(brandLabel).y <= position(sourceLabel).y) throw new Error("Brand row follows the source/date row");
+    if (position(brandLabel).x <= position(sourceLabel).x) throw new Error("Brand text leaves space for its leading logo");
+    for (const mark of markShapes) {
+      const p = position(mark);
+      equal(p.x, position(sourceLabel).x, "Logo aligns to the source left edge");
+      const ext = mark.getElementsByTagName("a:ext")[0]!;
+      const w = Number(ext.getAttribute("cx")), h = Number(ext.getAttribute("cy"));
+      if (p.x < 0 || p.y < 0 || p.x + w > painter.pageWidth * 12700 || p.y + h > painter.pageHeight * 12700) throw new Error("Embedded logo remains inside the physical slide");
+    }
+  }
+}
+console.log("Export footer: all eight PPTX setting combinations preserve two-tier alignment and embedded monochrome logo.");
