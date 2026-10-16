@@ -40,6 +40,7 @@ export function mountDocumentDetail(app: App, session: CurrentDocumentSession, r
   let mode: DetailMode = 'practice';
   let draft = newDraftKey();
   let navigating = false;
+  const navigationListeners = new Set<(screen:DocumentScreen,mode:DetailMode) => void>();
   const positions = new Map<string,number>();
   const key = () => session.current?.id ?? draft;
   let visibleKey = key();
@@ -65,13 +66,17 @@ export function mountDocumentDetail(app: App, session: CurrentDocumentSession, r
     });
   }
   function display(next:DocumentScreen, nextMode=mode) {
-    rememberPosition(); screen=next; mode=nextMode; visibleKey=key();
+    rememberPosition();
+    if (nextMode === 'edit' || next === 'library') app.playback.stop();
+    screen=next; mode=nextMode; visibleKey=key();
+    delete root.dataset.notaTool;
     root.dataset.notaScreen=screen; root.dataset.notaMode=mode;
     start.hidden=screen !== 'library'; root.classList.toggle('is-starting',screen === 'library');
     if (screen === 'library') { app.playback.stop(); refreshLibrary(); }
     // Hidden code panels must not retain focus/keyboard editing when switching into reading.
     if (screen === 'detail' && document.activeElement instanceof HTMLElement) document.activeElement.blur();
     refresh();
+    navigationListeners.forEach(listener => listener(screen,mode));
     requestAnimationFrame(() => { if(screen !== 'library') scorePane.scrollTop=positions.get(key()) ?? 0; });
   }
   function navigate(next:DocumentScreen,nextMode=mode,replace=false) {
@@ -101,7 +106,7 @@ export function mountDocumentDetail(app: App, session: CurrentDocumentSession, r
   exportButton.onclick=() => showExportDialog(app);
   query('nota-edit-export').onclick=() => showExportDialog(app);
   editButton.onclick=() => navigate('editor','edit');
-  tuneButton.onclick=() => { navigate('editor','edit'); document.getElementById('nota-practice')?.scrollIntoView({block:'nearest'}); };
+  tuneButton.onclick=() => { navigate('editor','edit'); root.dataset.notaTool='tune'; document.getElementById('nota-practice')?.scrollIntoView({block:'nearest'}); };
   window.addEventListener('popstate',event => {
     const r=event.state as Route | null;
     void restore(r?.nota ? r : {nota:true,screen:'library',mode:'practice',id:null,draft});
@@ -121,6 +126,9 @@ export function mountDocumentDetail(app: App, session: CurrentDocumentSession, r
     session, practiceControls, actionSlot, saveButton, exportButton, tuneButton, editButton,
     get screen(){return screen;}, get mode(){return mode;}, get documentKey(){return key();},
     refresh,
+    subscribeNavigation(listener:(screen:DocumentScreen,mode:DetailMode) => void) {
+      navigationListeners.add(listener); return () => navigationListeners.delete(listener);
+    },
     open(nextMode:DetailMode='edit') { if(!session.current) draft=newDraftKey(); navigate('detail',nextMode); },
     home(){navigate('library');},
     showEditor(){navigate('editor','edit');},

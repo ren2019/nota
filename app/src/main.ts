@@ -20,6 +20,7 @@ import { PRACTICE_SAMPLE } from "./nota/sample";
 import { mountLibrary } from "./nota/library";
 import { mountPracticeControls } from "./nota/practice-controls";
 import { CurrentDocumentSession } from "./nota/document-session";
+import { mountEditorPage } from "./nota/editor-page";
 import { mountDocumentDetail, type DetailMode, type DocumentDetail } from "./nota/detail";
 import { mountNotaExport } from "./nota/export-dialog";
 
@@ -134,6 +135,7 @@ async function boot() {
   const library = mountLibrary(app, revealWorkspace, session);
   detail = mountDocumentDetail(app, session, () => { void library.refresh(); });
   mountNotaExport(app);
+  mountEditorPage(app, session, detail);
   // Extensions receive the same App/session/shell; no second document is created.
   app.saveToLibrary = library.save;
   const showStartScreen = () => detail.home();
@@ -322,6 +324,7 @@ async function boot() {
 
   // paging / zoom keys
   window.addEventListener("keydown", (e) => {
+    if (detail.screen === "library") return;
     const mod = e.ctrlKey || e.metaKey;
     if (mod && (e.key === "=" || e.key === "+")) { e.preventDefault(); app.zoomBy(1.2); updateZoom(); }
     else if (mod && e.key === "-") { e.preventDefault(); app.zoomBy(1 / 1.2); updateZoom(); }

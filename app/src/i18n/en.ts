@@ -2,6 +2,20 @@
 import type { MsgKey } from "./zh";
 
 export const en: Record<MsgKey, string> = {
+  "nota.editor.context": "Current editing document",
+  "nota.editor.unsaved": "Unsaved library changes",
+  "nota.editor.saved": "Library · Saved",
+  "nota.editor.draft": "Draft · Not saved to library",
+  "nota.editor.printTitle": "Printed title: {title}",
+  "nota.editor.back": "Back to song",
+  "nota.editor.current": "Current score",
+  "nota.editor.source": "Original image",
+  "nota.editor.sourceReview": "Original image review",
+  "nota.editor.sourceFragment": "Original excerpt · Follows selection",
+  "nota.editor.page": "{kind} · Page {page} / {total}",
+  "settings.scope.layout": "Current view: {view}. View styles are saved in this browser and reused by later scores. Reset clears only this view’s user styles, preserving other views and part volumes.",
+  "settings.scope.preferences": "Language, note audition and import preferences are saved in this browser, without changing score text.",
+  "settings.scope.header": "Header font settings are saved in this browser and shared across views. Resetting a view preserves header settings. The printed title comes from score text and may differ from the library name.",
   "nota.export.123": "123 jianpu text (output settings)",
   "nota.export.123.single": "123 output currently supports one song with one melody part. Select the melody part first.",
   "nota.export.123.parse": "Fix source parsing errors before exporting 123.",
