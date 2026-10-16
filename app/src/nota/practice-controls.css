@@ -28,3 +28,5 @@
 .nota-reading-lyrics input { width:20px; height:20px; accent-color:#285e42; }
 .nota-reading-dialog p { color:#657562; font-size:12px; line-height:1.6; }
 .nota-reading-dialog .nota-reading-done { width:100%; background:#285e42; color:white; font-weight:650; }
+
+.nota-play-actions .nota-reading-open > span:first-child {font-size:19px;}

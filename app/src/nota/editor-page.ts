@@ -23,9 +23,10 @@ export function mountEditorPage(app:App, session:CurrentDocumentSession, detail:
   const heading=document.querySelector<HTMLElement>('#score-pane-shell > .pane-heading > span')!;
   heading.removeAttribute('data-i18n');
   function refresh() {
+    header.setAttribute('aria-label',t('nota.editor.context'));
     title.textContent=session.title;
     const statusText=session.current ? t(session.dirty ? 'nota.editor.unsaved' : 'nota.editor.saved') : t('nota.editor.draft');
-    status.textContent=session.recovered ? `自动恢复稿 · ${statusText}` : statusText;
+    status.textContent=session.recovered ? t('nota.ia.recoveredBanner',{status:statusText}) : statusText;
     print.textContent=t('nota.editor.printTitle',{title:app.documentTitle() || '—'});
     back.textContent=t('nota.editor.back');
     const originalView=app.mode === 'recognize';

@@ -167,7 +167,7 @@ async function boot() {
   const setStartFeedback = (message:string,retryImages=false) => {
     startFeedback.textContent=message;startFeedback.hidden=!message;
     if(message && retryImages) {
-      const retry=document.createElement('button');retry.type='button';retry.className='start-feedback-retry';retry.textContent='重新选择图片';
+      const retry=document.createElement('button');retry.type='button';retry.className='start-feedback-retry';retry.textContent=t('nota.ia.chooseImagesAgain');
       retry.onclick=() => recognizeFromPicker();startFeedback.append(' ',retry);
     }
   };

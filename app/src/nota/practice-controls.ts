@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import type { App } from '../editor/app';
 import type { CurrentDocumentSession } from './document-session';
 import type { DocumentDetail } from './detail';
@@ -8,7 +9,7 @@ export function mountPracticeControls(app: App, session: CurrentDocumentSession,
   const root = document.getElementById('app')!;
   const pane = document.getElementById('score-pane')!;
   const dock = detail.practiceControls;
-  dock.innerHTML = `<div class="nota-play-progress"></div><div class="nota-play-actions"><div class="nota-play-speed"></div><button type="button" class="nota-rewind" aria-label="回到开头" title="回到开头">↤</button><div class="nota-play-main"></div><div class="nota-play-loop"></div><button type="button" class="nota-reading-open" aria-haspopup="dialog">字<span>阅读</span></button></div>`;
+  dock.innerHTML = `<div class="nota-play-progress"></div><div class="nota-play-actions"><div class="nota-play-speed"></div><button type="button" class="nota-rewind" aria-label="${t("nota.ia.htmlBackToBeginning9")}" data-i18n-aria="nota.ia.htmlBackToBeginning9" title="${t("nota.ia.htmlBackToBeginning9")}" data-i18n-title="nota.ia.htmlBackToBeginning9">↤</button><div class="nota-play-main"></div><div class="nota-play-loop"></div><button type="button" class="nota-reading-open" aria-haspopup="dialog"><span data-i18n="nota.ia.htmlAa7">${t("nota.ia.htmlAa7")}</span><span><span data-i18n="nota.ia.htmlReading8">${t("nota.ia.htmlReading8")}</span></span></button></div>`;
   const targets = [
     ['play-progress','.nota-play-progress'], ['play-time','.nota-play-progress'],
     ['sel-speed','.nota-play-speed'], ['btn-play','.nota-play-main'], ['btn-loop','.nota-play-loop'],
@@ -23,7 +24,7 @@ export function mountPracticeControls(app: App, session: CurrentDocumentSession,
   const dialog = document.createElement('dialog');
   dialog.className='nota-reading-dialog';
   dialog.setAttribute('aria-labelledby','nota-reading-title');
-  dialog.innerHTML=`<form method="dialog"><header><h2 id="nota-reading-title">阅读</h2><button aria-label="关闭阅读设置">×</button></header><label>谱面大小<select id="nota-reading-size"><option value="1">适合屏宽</option><option value="1.25">放大 125%</option><option value="1.5">放大 150%</option><option value="2">放大 200%</option><option value="2.5">放大 250%</option></select></label><label class="nota-reading-lyrics"><input type="checkbox" id="nota-reading-lyrics"> 显示歌词</label><p>只影响屏幕阅读。放大后可左右滑动看谱，打印设置不变。</p><button class="nota-reading-done">完成</button></form>`;
+  dialog.innerHTML=`<form method="dialog"><header><h2 id="nota-reading-title"><span data-i18n="nota.ia.htmlReading8">${t("nota.ia.htmlReading8")}</span></h2><button aria-label="${t("nota.ia.htmlCloseReadingSettings19")}" data-i18n-aria="nota.ia.htmlCloseReadingSettings19">×</button></header><label><span data-i18n="nota.ia.htmlScoreSize10">${t("nota.ia.htmlScoreSize10")}</span><select id="nota-reading-size"><option value="1"><span data-i18n="nota.ia.htmlFitScreenWidth11">${t("nota.ia.htmlFitScreenWidth11")}</span></option><option value="1.25"><span data-i18n="nota.ia.htmlZoom12">${t("nota.ia.htmlZoom12")}</span></option><option value="1.5"><span data-i18n="nota.ia.htmlZoom13">${t("nota.ia.htmlZoom13")}</span></option><option value="2"><span data-i18n="nota.ia.htmlZoom14">${t("nota.ia.htmlZoom14")}</span></option><option value="2.5"><span data-i18n="nota.ia.htmlZoom15">${t("nota.ia.htmlZoom15")}</span></option></select></label><label class="nota-reading-lyrics"><input type="checkbox" id="nota-reading-lyrics"><span data-i18n="nota.ia.htmlShowLyrics16">${t("nota.ia.htmlShowLyrics16")}</span></label><p><span data-i18n="nota.ia.htmlScreenReadingOnlySwipeSideways17">${t("nota.ia.htmlScreenReadingOnlySwipeSideways17")}</span></p><button class="nota-reading-done"><span data-i18n="nota.ia.htmlDone18">${t("nota.ia.htmlDone18")}</span></button></form>`;
   document.body.append(dialog);
   const size = dialog.querySelector<HTMLSelectElement>('#nota-reading-size')!;
   const lyrics = dialog.querySelector<HTMLInputElement>('#nota-reading-lyrics')!;
