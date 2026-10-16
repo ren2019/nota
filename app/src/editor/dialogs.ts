@@ -125,6 +125,14 @@ export function showUnsavedLibraryDialog(title:string, closing=false):Promise<'s
   });
 }
 
+/** A completed async save can outlive browser user activation; this click opens the system picker directly. */
+export function openFilePicker(input:HTMLInputElement,onCancel?:()=>void):void {
+  if(navigator.userActivation && !navigator.userActivation.isActive) {
+    const body=document.createElement('p');body.textContent='当前曲谱已保留。点击“选择文件”打开系统文件选择器。';
+    showFormDialog('选择输入文件',body,() => input.click(),'选择文件',onCancel);
+  } else input.click();
+}
+
 /** 一张表单对话框：确定时调 `onOk`（取消什么也不做）。 */
 export function showFormDialog(title: string, body: HTMLElement, onOk: () => void, okLabel?: string, onCancel?: () => void): void {
   modal(title, body, onOk, onCancel, undefined, okLabel);

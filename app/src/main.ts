@@ -1,10 +1,12 @@
 import "./styles.css";
+import "./nota/home.css";
+import { prepareRecognitionFiles } from "./nota/recognition-input";
 import { MetaData } from "./smufl/smufl";
 import { ensureFontsReady } from "./common/measure";
 import { asset } from "./common/asset";
 import { App, type ViewMode } from "./editor/app";
 import { IMAGE_EXT, IMAGE_ACCEPT, isDocFile, isImageFile } from "./common/filetypes";
-import { showOptionsDialog, showHanConvDialog } from "./editor/dialogs";
+import { showOptionsDialog, showHanConvDialog, openFilePicker } from "./editor/dialogs";
 import { showPartsPanel } from "./editor/parts";
 import { showExportDialog, showSaveAsDialog } from "./editor/export";
 import { showHelpDialog } from "./editor/help";
@@ -151,11 +153,10 @@ async function boot() {
   const showStartScreen = () => detail.home();
   const openStarter = async (text: string, name: string) => {
     if (!(await app.confirmReplace())) return;
+    // Adopt only after the real parser/editor transaction succeeds.
+    if(!(await app.openBytes(new TextEncoder().encode(text),name))) {setStartFeedback(app.status);return;}
     library.detach();
-    // 示例也走正常导入，清除之前文档的识别会话。
-    app.importBytes(new TextEncoder().encode(text), name);
     await app.setViewMode("original");
-    app.applyRenderSettings({ paper: { jianpu: { paper: "A4", orientation: "portrait", margin: [40, 40, 40, 40] } }, fontSize: 20, color: 0xff000000, bgColor: 0xffffffff });
     app.filePath = null;
     app.markClean();
     revealWorkspace();
@@ -163,23 +164,11 @@ async function boot() {
   const showSample = () => openStarter(PRACTICE_SAMPLE, "小星星.123");
   const showBlank = () => openStarter("T:未命名曲谱\nM:4/4\nQ:1/4=88\nK:1=C\n0 0 0 0 |]\n", "新曲谱.123");
   const setRecognitionBusy = (busy: boolean) => { recognitionProgress.hidden = !busy; };
-  const setStartFeedback = (message: string) => {
-    startFeedback.textContent = message;
-    startFeedback.hidden = !message;
-    // 识别失败了还有原图：给一个「旋转 / 裁剪后重试」（横着拍、带了邻页的照片常见）
-    if (message && app.omr.hasInputs) {
-      const retry = document.createElement("button");
-      retry.type = "button";
-      retry.className = "start-feedback-retry";
-      retry.textContent = t("start.retryAdjust");
-      retry.addEventListener("click", () => void app.omr.showPages((ok) => {
-        if (ok) {
-          setStartFeedback("");
-          setMobileView("score");
-          revealWorkspace();
-        } else setStartFeedback(app.status || t("start.recogFailed"));
-      }));
-      startFeedback.append(" ", retry);
+  const setStartFeedback = (message:string,retryImages=false) => {
+    startFeedback.textContent=message;startFeedback.hidden=!message;
+    if(message && retryImages) {
+      const retry=document.createElement('button');retry.type='button';retry.className='start-feedback-retry';retry.textContent='重新选择图片';
+      retry.onclick=() => recognizeFromPicker();startFeedback.append(' ',retry);
     }
   };
   const mobileCodeBtn = document.getElementById("btn-mobile-code") as HTMLButtonElement;
@@ -201,7 +190,7 @@ async function boot() {
         setMobileView("score");
         revealWorkspace();
       } else if (appRoot.classList.contains("is-starting")) {
-        setStartFeedback(app.status || t("start.recognizeFailed"));
+        setStartFeedback(app.status || t("start.recognizeFailed"),true);
       }
     },
   });
@@ -313,7 +302,7 @@ async function boot() {
   if (speedSel) app.playback.bindSpeedSelect(speedSel);
   app.playback.bindToggles(document.getElementById("btn-loop") as HTMLButtonElement | null, document.getElementById("btn-metronome") as HTMLButtonElement | null);
   mountPracticeControls(app, session, detail);
-  const openScore = async () => { if (await app.openFile()) { library.detach(); revealWorkspace(); } };
+  const openScore = async () => { const statusBefore=app.status; if (await app.openFile()) { library.detach(); setStartFeedback(""); revealWorkspace(); } else if(appRoot.classList.contains("is-starting") && app.status !== statusBefore) setStartFeedback(app.status); };
   document.getElementById("btn-open")?.addEventListener("click", () => void openScore());
   document.getElementById("btn-start-score")?.addEventListener("click", () => void openScore());
   document.getElementById("btn-image-open")?.addEventListener("click", recognizeFromPicker);
@@ -355,7 +344,7 @@ async function boot() {
         setMobileView("score");
         revealWorkspace();
       } else if (appRoot.classList.contains("is-starting")) {
-        setStartFeedback(app.status || t("start.recognizeFailed"));
+        setStartFeedback(app.status || t("start.recognizeFailed"),true);
       }
     },
   });
@@ -524,7 +513,7 @@ async function pickRecognitionFile(app: App, hooks: RecognitionPickerHooks): Pro
     if (!paths.length) return;
     const raw = [];
     for (const p of paths) raw.push({ bytes: await readFile(p), name: p });
-    const files = await app.omr.prepareInputs(raw);
+    const files = await prepareRecognitionFiles(app,raw);
     if (!files) return;
     hooks.onPicked();
     let success = false;
@@ -545,7 +534,7 @@ async function pickRecognitionFile(app: App, hooks: RecognitionPickerHooks): Pro
     if (!picked.length) return;
     const raw = [];
     for (const f of picked) raw.push({ bytes: new Uint8Array(await f.arrayBuffer()), mime: f.type, name: f.name });
-    const files = await app.omr.prepareInputs(raw);
+    const files = await prepareRecognitionFiles(app,raw);
     if (!files) return;
     hooks.onPicked();
     let success = false;
@@ -555,7 +544,7 @@ async function pickRecognitionFile(app: App, hooks: RecognitionPickerHooks): Pro
       hooks.onDone(success);
     }
   };
-  input.click();
+  openFilePicker(input);
 }
 
 interface DropHooks {
@@ -579,7 +568,7 @@ async function wireDragDrop(app: App, dropTarget: HTMLElement, hooks: DropHooks)
           const imgs = event.payload.paths.filter((p) => isImageFile(p)).sort();
           const raw = [];
           for (const p of imgs) raw.push({ bytes: await readFile(p), name: p });
-          const files = await app.omr.prepareInputs(raw);
+          const files = await prepareRecognitionFiles(app,raw);
           if (!files) return;
           hooks.onRecognitionStart();
           let success = false;
@@ -592,11 +581,9 @@ async function wireDragDrop(app: App, dropTarget: HTMLElement, hooks: DropHooks)
         }
         if (!isDocFile(path)) return;
         const bytes = await readFile(path);
-        app.importBytes(bytes, path);
-        app.filePath = path;
+        if(!(await app.openBytes(bytes,path,true))) return;
         app.rememberLastFile(path);
         hooks.onOpened();
-        void app.onDocumentOpened();
       }
     });
   } else {
@@ -624,7 +611,7 @@ async function wireDragDrop(app: App, dropTarget: HTMLElement, hooks: DropHooks)
           .sort((a, b) => a.name.localeCompare(b.name, "zh"));
         const raw = [];
         for (const f of all) raw.push({ bytes: f === file ? buf : new Uint8Array(await f.arrayBuffer()), mime: f.type, name: f.name });
-        const files = await app.omr.prepareInputs(raw);
+        const files = await prepareRecognitionFiles(app,raw);
         if (!files) return;
         hooks.onRecognitionStart();
         let success = false;
@@ -637,9 +624,8 @@ async function wireDragDrop(app: App, dropTarget: HTMLElement, hooks: DropHooks)
       }
       // 与 Tauri 分支同一套白名单：以前这里不判，拖进任意文件都会试着导入。
       if (!isDocFile(file.name)) return;
-      app.importBytes(buf, file.name);
+      if(!(await app.openBytes(buf,file.name,true))) return;
       hooks.onOpened();
-      void app.onDocumentOpened();
     });
   }
 }
