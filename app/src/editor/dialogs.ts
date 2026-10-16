@@ -443,6 +443,7 @@ function settingsTabs(pages: readonly [string, string, HTMLElement][]): HTMLElem
 
 export function showOptionsDialog(app: App): void {
   const initialAccidentalMode = app.jianpuAccidentals;
+  const initialLyrics = app.showLyrics;
   const footerOptions = readFooterOptions();
   // 分标签页摆版面、页眉、简谱输出与其他，避免小屏放不下确定按钮。
   const pLayout = document.createElement("div");
@@ -452,6 +453,14 @@ export function showOptionsDialog(app: App): void {
   const outputHint = document.createElement("p");
   outputHint.textContent = t("settings.jianpu.hint");
   pJianpu.append(outputHint);
+  const lyricOption = document.createElement("label");
+  lyricOption.style.cssText = "display:flex;align-items:center;gap:8px;min-height:40px";
+  const lyricToggle = document.createElement("input");
+  lyricToggle.type = "checkbox";
+  lyricToggle.checked = app.showLyrics;
+  lyricToggle.onchange = () => app.setShowLyrics(lyricToggle.checked);
+  lyricOption.append(lyricToggle, "显示歌词（谱面与图形导出，不改原稿）");
+  pJianpu.append(lyricOption);
   for (const mode of ["explicit", "measure"] as const) {
     const label = document.createElement("label");
     label.style.cssText = "display:flex;align-items:center;gap:8px;margin:12px 0;min-height:40px";
@@ -714,7 +723,7 @@ export function showOptionsDialog(app: App): void {
     }
     if (showNoteSound && noteSound.checked !== app.visual.noteSound) app.visual.setNoteSound(noteSound.checked);
     if (langSel.value !== getLangPref()) setLangPref(langSel.value as LangPref);
-  }, () => app.setJianpuAccidentals(initialAccidentalMode), isMixed ? undefined : {
+  }, () => { app.setJianpuAccidentals(initialAccidentalMode); app.setShowLyrics(initialLyrics); }, isMixed ? undefined : {
     // 清掉当前档（展开 / 原样）的用户层，回到内置主题；另一档与声部音量不动
     label: t("settings.reset"),
     onClick: () => app.resetRenderSettings(),

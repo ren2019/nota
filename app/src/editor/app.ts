@@ -165,6 +165,15 @@ export class App implements OmrHost, PlaybackHost, FormatHost, FormatSwitchHost,
   /** Current-device output preference; never changes the editor/library source. */
   jianpuAccidentals: JianpuAccidentalMode = DEFAULT_JIANPU_ACCIDENTALS;
 
+  /** Browser-wide output visibility; the editable lyrics are never removed. */
+  showLyrics = true;
+  setShowLyrics(show: boolean): void {
+    if (this.showLyrics === show) return;
+    this.showLyrics = show;
+    this.saveSettings();
+    this._rerender();
+  }
+
   /** No preset is assumed for existing users: preserve their current style size. */
   practiceFontSize: 16 | 20 | 24 | null = null;
 
@@ -639,6 +648,7 @@ export class App implements OmrHost, PlaybackHost, FormatHost, FormatSwitchHost,
     if (!s) return;
     this.jianpuAccidentals = jianpuAccidentalMode(s.jianpuAccidentals);
     this.practiceFontSize = practiceFontSize(s.practiceFontSize);
+    this.showLyrics = s.showLyrics !== false;
     this.omr.loadSettings(s);
     this.playback.loadSettings(s);
     this.visual.loadSettings(s);
@@ -674,6 +684,7 @@ export class App implements OmrHost, PlaybackHost, FormatHost, FormatSwitchHost,
     savePersistedSettings({
       jianpuAccidentals: this.jianpuAccidentals,
       practiceFontSize: this.practiceFontSize,
+      showLyrics: this.showLyrics,
       styleLayers: this._userLayers,
       zoom: this.zoom,
       mixedHideBarNumber: this.mixedHideBarNumber,
@@ -842,13 +853,13 @@ export class App implements OmrHost, PlaybackHost, FormatHost, FormatSwitchHost,
         const f = JpwFile.fromString(this.getText());
         const doc = this.jpwDoc;
         if (!f || !doc) return null;
-        req = { view: this.layoutMode, doc, style: this.styleOf(this.layoutMode), breakDesc: f.getSection(LayoutSection)?.desc ?? null, accidentalMode: this.jianpuAccidentals };
+        req = { view: this.layoutMode, doc, style: this.styleOf(this.layoutMode), breakDesc: f.getSection(LayoutSection)?.desc ?? null, showLyrics: this.showLyrics, accidentalMode: this.jianpuAccidentals };
       } else if (this.layoutMode === "expanded") {
         req = this.expandedRequest();
       } else {
         const doc = this.currentScoreDoc();
         if (!doc || this.docFormat === "pu" || this.docFormat === "musicxml" || !singleVoice(doc)) return null;
-        req = { view: "original", doc, style: this.styleOf("original"), accidentalMode: this.jianpuAccidentals };
+        req = { view: "original", doc, style: this.styleOf("original"), showLyrics: this.showLyrics, accidentalMode: this.jianpuAccidentals };
       }
       if (!req) return null;
       // 另一个排版器实例按当前档与纸排一遍，不动屏幕上那个
@@ -911,7 +922,7 @@ export class App implements OmrHost, PlaybackHost, FormatHost, FormatSwitchHost,
     const breakDesc = f.getSection(LayoutSection)?.desc ?? null;
     this._breakDesc = breakDesc; // 导出 PPTX 时另排一遍要用同一份分页描述
     try {
-      this.painter.loadSync({ view: this.layoutMode, doc, style: this.styleOf(this.layoutMode), breakDesc, accidentalMode: this.jianpuAccidentals });
+      this.painter.loadSync({ view: this.layoutMode, doc, style: this.styleOf(this.layoutMode), breakDesc, showLyrics: this.showLyrics, accidentalMode: this.jianpuAccidentals });
     } catch (e) {
       console.error("layout failed", e);
       return false;
@@ -962,8 +973,8 @@ export class App implements OmrHost, PlaybackHost, FormatHost, FormatSwitchHost,
     const style = this.styleOf("expanded");
     const src = this.docFormat === "jpwabc" ? this._jpwDoc : this.currentScoreDoc();
     if (!src || !hasLines(src)) return null;
-    if (this.docFormat === "jpwabc") return { view: "expanded", doc: src, style, breakDesc: this._breakDesc, accidentalMode: this.jianpuAccidentals };
-    return { view: "expanded", doc: this._expandedDoc(src), style, accidentalMode: this.jianpuAccidentals };
+    if (this.docFormat === "jpwabc") return { view: "expanded", doc: src, style, breakDesc: this._breakDesc, showLyrics: this.showLyrics, accidentalMode: this.jianpuAccidentals };
+    return { view: "expanded", doc: this._expandedDoc(src), style, showLyrics: this.showLyrics, accidentalMode: this.jianpuAccidentals };
   }
 
   /** 展开档排的那份文档：MusicXML 按声部面板换旋律声部与歌词来源（元素 id 不变）。 */
@@ -981,9 +992,9 @@ export class App implements OmrHost, PlaybackHost, FormatHost, FormatSwitchHost,
           this.setStatus(t("status.noLines", { what }));
           return false;
         }
-        this.painter.loadSync({ view: "expanded", doc: this._expandedDoc(doc), style: this.styleOf("expanded"), accidentalMode: this.jianpuAccidentals });
+        this.painter.loadSync({ view: "expanded", doc: this._expandedDoc(doc), style: this.styleOf("expanded"), showLyrics: this.showLyrics, accidentalMode: this.jianpuAccidentals });
       } else {
-        this.painter.loadSync({ view: "original", doc, style: this.styleOf("original"), accidentalMode: this.jianpuAccidentals });
+        this.painter.loadSync({ view: "original", doc, style: this.styleOf("original"), showLyrics: this.showLyrics, accidentalMode: this.jianpuAccidentals });
       }
     } catch (e) {
       console.error(`${what}排版失败`, e);
@@ -2588,7 +2599,7 @@ export class App implements OmrHost, PlaybackHost, FormatHost, FormatSwitchHost,
     const outcome = await this.painter.load({
       view: this.mixedShowJianpuLayer ? "mixed" : "staff",
       doc,
-      accidentalMode: this.jianpuAccidentals,
+      showLyrics: this.showLyrics, accidentalMode: this.jianpuAccidentals,
       style: this.staffStyle(),
       page: this.staffPage,
       hideBarNumber: this.mixedHideBarNumber,

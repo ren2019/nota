@@ -249,6 +249,18 @@ console.log(
   "Jianpu origins: ABC/JP-Word/text/123 original, expanded and mixed page outputs preserve music and IDs.",
 );
 
+// The output lyric switch changes the actual page/PPTX input, never the editable score.
+const lyricDoc = parse123("T:Lyrics\nM:4/4\nK:1=C\n1 2 3 4 |]\nw:合成歌词");
+const lyricOriginal = JSON.stringify(lyricDoc);
+const lyricMusic = music(lyricDoc);
+const lyricStyle = computeStyleForPaper([THEMES.print], { mode: "original", engine: "jianpu" });
+painter.loadSync({ view: "original", doc: lyricDoc, style: lyricStyle, showLyrics: false });
+equal(painter.result!.pages.flatMap(p => textOf(p.root)).filter(text => /合|成|歌|词/.test(text)), [], "Hiding lyrics removes them from real output pages");
+equal(JSON.stringify(lyricDoc), lyricOriginal, "Hiding lyrics preserves editable lyrics and source positions");
+equal(music(lyricDoc), lyricMusic, "Hiding lyrics preserves playback input");
+painter.loadSync({ view: "original", doc: lyricDoc, style: lyricStyle, showLyrics: true });
+if (!painter.result!.pages.flatMap(p => textOf(p.root)).some(text => /合|成|歌|词/.test(text))) throw new Error("Showing lyrics restores actual output");
+
 // PPTX turns SMuFL marks into vector outlines. Repeated explicit flats must
 // survive that serialization, including when exported from another screen view.
 Object.defineProperty(globalThis, "localStorage", {
@@ -257,6 +269,36 @@ Object.defineProperty(globalThis, "localStorage", {
 });
 const { buildPptx } = await import("../editor/pptx");
 const { unzipSync, strFromU8 } = await import("fflate");
+// Every output path consumes the same lyric visibility, including native XML
+// and PPTX's separately laid-out projection. Real serialization is checked.
+const lyricSources = [
+  lyricDoc,
+  parseAbc("X:1\nT:ABC lyrics\nM:4/4\nL:1/4\nK:C\nC D E F |]\nw:合 成 歌 词"),
+  jpwToScoreDoc(JpwFile.fromString(".Title\nTitle = {JPW lyrics}\nKeyAndMeters = {1=C,4/4}\n.Voice\n1 2 3 4 |]\n.Words\nW1@1,1:合成歌词")!),
+  parsePu("V:Text lyrics\nD:C\nP:4/4\nQ:1 2 3 4 ||\nC:合成歌词"),
+];
+for (const doc of lyricSources) {
+  const raw = JSON.stringify(doc);
+  for (const view of ["original", "expanded"] as const) {
+    const style = computeStyleForPaper([view === "expanded" ? THEMES.projection : THEMES.print], {mode:view, engine:"jianpu"});
+    painter.loadSync({view, doc, style, showLyrics:true});
+    if (!painter.result!.pages.flatMap(page => textOf(page.root)).some(text => /合|成|歌|词/.test(text))) throw new Error(`${doc.sourceFormat} lyric fixture must actually show lyrics`);
+    painter.loadSync({view, doc, style, showLyrics:false});
+    equal(painter.result!.pages.flatMap(page => textOf(page.root)).filter(text => /合|成|歌|词/.test(text)), [], `${doc.sourceFormat} ${view}: no printed lyrics`);
+    const deck = unzipSync(await buildPptx(painter.pptxSource));
+    for (const [path, bytes] of Object.entries(deck)) if (/^ppt\/slides\/slide\d+\.xml$/.test(path) && /合|成|歌|词/.test(strFromU8(bytes))) throw new Error("PPTX must omit hidden lyrics too");
+  }
+  equal(JSON.stringify(doc), raw, "Output never deletes original lyrics");
+}
+const lyricXml = loadScoreDoc(xml.replace("<duration>1</duration><type>quarter</type></note>", '<duration>1</duration><type>quarter</type><lyric number="1"><text>歌词实测</text></lyric></note>'));
+const lyricXmlRaw = JSON.stringify(lyricXml);
+for (const view of ["staff", "mixed"] as const) {
+  await painter.load({view, doc:lyricXml, page:{widthPt:595,heightPt:842,override:true}, hideBarNumber:true, showLyrics:true});
+  if (!painter.result!.pages.flatMap(page => textOf(page.root)).some(text => text.includes("歌词实测"))) throw new Error("Native XML fixture must show a real lyric");
+  await painter.load({view, doc:lyricXml, page:{widthPt:595,heightPt:842,override:true}, hideBarNumber:true, showLyrics:false});
+  equal(painter.result!.pages.flatMap(page => textOf(page.root)).filter(text => text.includes("歌词实测")), [], "Native staff and mixed output hide lyrics");
+}
+equal(JSON.stringify(lyricXml), lyricXmlRaw, "Native XML output does not mutate source/surface data");
 const { toMidi } = await import("../score/midi");
 const { scoreDocToMusicXml } = await import("../model/toxml");
 const base = fixtures[0][1];
