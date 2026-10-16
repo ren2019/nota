@@ -29,6 +29,9 @@ await build({entryPoints:[path.join(root,"src/nota/structured-score.check.ts")],
 await import(pathToFileURL(sourceOutput).href);
 
 const settingsOutput = path.join(root, "out/nota-output-settings-check.mjs");
+const searchOutput = path.join(root, "out/nota-score-search-check.mjs");
+await build({entryPoints:[path.join(root,"src/nota/score-search.check.ts")],outfile:searchOutput,bundle:true,platform:"node",format:"esm"});
+await import(pathToFileURL(searchOutput).href);
 await build({ entryPoints: [path.join(root, "src/nota/output-settings.check.ts")], outfile: settingsOutput, bundle: true, platform: "node", format: "esm" });
 await import(pathToFileURL(settingsOutput).href);
 
