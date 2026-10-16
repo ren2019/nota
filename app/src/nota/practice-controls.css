@@ -1,0 +1,31 @@
+/* Only the reading route changes. Original Dolce toolbar and print layout keep their own geometry. */
+#app[data-nota-screen="detail"][data-nota-mode="practice"] #nota-practice-controls { background:#fdfef9; color:#254e38; border-top:1px solid #d4ddce; padding:8px max(12px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left)); }
+.nota-play-progress, .nota-play-actions { display:flex; align-items:center; gap:8px; max-width:900px; margin:auto; }
+.nota-play-progress #play-progress { flex:1; width:0; min-width:0; height:32px; accent-color:#285e42; }
+.nota-play-progress #play-time { min-height:32px; color:#647562; white-space:nowrap; font-size:11px; }
+.nota-play-actions { justify-content:space-around; }
+.nota-play-actions > * { display:flex; justify-content:center; align-items:center; flex:1; min-width:0; }
+.nota-play-actions button, .nota-play-actions select { min-width:44px; min-height:48px; border:0; border-radius:12px; background:transparent; color:inherit; font-size:14px; cursor:pointer; }
+.nota-play-actions #btn-play { border-radius:50%; height:56px; width:56px; min-width:56px; background:#285e42; color:white; justify-content:center; padding:16px; }
+.nota-play-actions .playback-icon { width:22px; height:22px; }
+.nota-play-actions .playback-icon svg { width:100%; height:100%; }
+.nota-play-actions .playback-label { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+.nota-play-actions #btn-loop.active { background:#e3edde; font-weight:700; }
+.nota-play-actions .nota-rewind { font-size:24px; }
+.nota-play-actions .nota-reading-open { flex-direction:column; font-size:19px; gap:2px; }
+.nota-reading-open span { font-size:11px; }
+.nota-play-speed .select-wrap { max-width:100%; }
+.nota-play-speed select { width:100%; max-width:90px; padding-inline:2px 16px; font-size:12px; }
+#app[data-nota-screen="detail"][data-nota-mode="practice"] .score-page-wrap { width:calc(min(var(--score-page-max),100%) * var(--nota-reading-scale,1)); }
+#app[data-nota-screen="detail"][data-nota-mode="practice"] .nota-reading-hide-lyrics :is(.lyric,.omr-lyric,.nota-reading-lyric) { visibility:hidden; }
+.nota-reading-dialog { width:min(360px,calc(100vw - 32px)); padding:20px; border:1px solid #ced9cc; border-radius:18px; background:#fdfef9; color:#234333; box-shadow:0 12px 50px #132b3240; box-sizing:border-box; }
+.nota-reading-dialog::backdrop { background:#132b3260; }
+.nota-reading-dialog header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+.nota-reading-dialog h2 { font-size:18px; margin:0; }
+.nota-reading-dialog button { min-width:44px; min-height:44px; border:0; border-radius:10px; background:#e7eee3; color:inherit; cursor:pointer; }
+.nota-reading-dialog label { display:flex; align-items:center; justify-content:space-between; gap:12px; margin:14px 0; }
+.nota-reading-dialog select { min-height:44px; border:1px solid #cad6c7; border-radius:8px; padding:8px; background:white; color:inherit; }
+.nota-reading-dialog .nota-reading-lyrics { justify-content:flex-start; }
+.nota-reading-lyrics input { width:20px; height:20px; accent-color:#285e42; }
+.nota-reading-dialog p { color:#657562; font-size:12px; line-height:1.6; }
+.nota-reading-dialog .nota-reading-done { width:100%; background:#285e42; color:white; font-weight:650; }
