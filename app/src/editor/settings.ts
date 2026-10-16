@@ -15,6 +15,8 @@ const KEY = "dolce-render-settings";
 export interface PersistedSettings {
   /** Global jianpu display preference; validate at the storage boundary. */
   jianpuAccidentals?: unknown;
+  /** Last explicitly selected practice preset; null means follow the existing style. */
+  practiceFontSize?: unknown;
   /** 样式用户层（`App._userLayers`：每个主题一组 `StyleRule`）。交 `sanitizeLayer` 校验。 */
   styleLayers?: unknown;
   zoom?: number;
@@ -54,13 +56,17 @@ export interface PersistedSettings {
   showPalette?: unknown;
 }
 
+export function practiceFontSize(value: unknown): 16 | 20 | 24 | null {
+  return value === 16 || value === 20 || value === 24 ? value : null;
+}
+
 export function loadPersistedSettings(): PersistedSettings | null {
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return null;
     const v: unknown = JSON.parse(raw);
     return v && typeof v === "object"
-      ? { ...v, jianpuAccidentals: jianpuAccidentalMode((v as PersistedSettings).jianpuAccidentals) }
+      ? { ...v, jianpuAccidentals: jianpuAccidentalMode((v as PersistedSettings).jianpuAccidentals), practiceFontSize: practiceFontSize((v as PersistedSettings).practiceFontSize) }
       : null;
   } catch {
     return null; // 存量数据损坏 / 存储不可用
