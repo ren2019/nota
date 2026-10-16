@@ -22,9 +22,15 @@ const profile = `${browserName}-${mobile ? "iphone" : "desktop"}`;
 const evidence = `${root}/local/qa/spec9-journeys${profile === "chromium-desktop" ? "" : `/${profile}`}`;
 await mkdir(evidence, { recursive: true });
 process.env.NOTA_LIBRARY_DIRECTORY = temporary;
-const server = await createServer({ root: `${root}/app`, configFile: `${root}/app/vite.config.ts`, server: { host: "127.0.0.1", port: 5192, strictPort: true, hmr: false } });
+const port = Number(process.env.NOTA_JOURNEY_TEST_PORT || 5192);
+const filter = process.env.NOTA_JOURNEY_FILTER || null;
+let registeredCases = 0;
+let executedCases = 0;
+let scope = "incomplete";
+const startedAt = new Date().toISOString();
+const server = await createServer({ cacheDir: `${temporary}/vite-cache`, root: `${root}/app`, configFile: `${root}/app/vite.config.ts`, server: { host: "127.0.0.1", port, strictPort: true, hmr: false } });
 await server.listen();
-const base = "http://127.0.0.1:5192";
+const base = `http://127.0.0.1:${port}`;
 const browser = await browserType.launch({ headless: true });
 const results = [];
 function deferred() {
@@ -97,13 +103,15 @@ async function home(page) {
   await activate(page.locator("#nota-back"));
 }
 async function test(name, work) {
+  registeredCases++;
+  if (filter && !name.includes(filter)) return;
+  executedCases++;
   const context = await browser.newContext(contextOptions);
   const page = await context.newPage();
   page.setDefaultTimeout(12e3);
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   try {
-    if (process.env.NOTA_JOURNEY_FILTER && !name.includes(process.env.NOTA_JOURNEY_FILTER)) return;
     await work(page, context);
     assert.deepEqual(errors, [], "no uncaught browser errors");
     await page.screenshot({ path: `${evidence}/${name.replace(/[^a-z0-9]+/gi, "-").slice(0, 100)}.png` });
@@ -326,7 +334,14 @@ try {
     assert.equal((await api()).body.length, count - 1);
     assert.equal(await page.locator("#library-list button").count(), count - 1);
     assert.match(await page.locator("#library-count").textContent(), new RegExp(String(count - 1)));
+    // Returning to the deleted detail triggers its real 404 fallback and a
+    // fresh library request. Wait for that restoration before reloading; the
+    // already-visible old home screen is not evidence that popstate settled.
+    const restoredLibrary = page.waitForResponse((response) =>
+      new URL(response.url()).pathname === "/api/library" && response.status() === 200);
     await page.goBack();
+    await restoredLibrary;
+    await page.waitForURL((url) => !url.searchParams.has("song"));
     assert.equal((await api(`/${item.id}`)).status, 404);
     await page.locator("#start-screen").waitFor({ state: "visible" });
     assert.equal(await page.getByRole("button", { name: "打开 其他人更新", exact: true }).count(), 0);
@@ -679,10 +694,21 @@ try {
     const observed = await page.evaluate(() => ({ visibility: document.visibilityState, events: window.__qaLifecycle }));
     await writeFile(`${evidence}/tab-lifecycle.json`, JSON.stringify({ beforeVisibility, duringVisibility, ...observed, scope: "browser tab switch only; not iOS OS suspension, lockscreen, calls, or process termination" }, null, 2));
   });
+  if (!executedCases) {
+    scope = "no-match";
+    throw new Error(`NOTA_JOURNEY_FILTER matched no cases: ${filter}`);
+  }
+  scope = filter ? "partial" : "full";
 } finally {
   await writeFile(`${evidence}/report.json`, JSON.stringify({
     baseline: execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim(),
-    filter: process.env.NOTA_JOURNEY_FILTER ?? null,
+    workingTreeDirty: Boolean(execFileSync("git", ["status", "--porcelain"], { cwd: root, encoding: "utf8" }).trim()),
+    filter,
+    registeredCases,
+    executedCases,
+    scope,
+    startedAt,
+    finishedAt: new Date().toISOString(),
     browser: { name: browserName, version: browser.version(), profile, viewport: contextOptions.viewport, isMobile: mobile, hasTouch: mobile },
     deviceEvidence: "desktop browser automation with optional mobile emulation; not a physical iPhone",
     boundary: "real App, visible UI, real HTTP temporary library; external source transport controlled",
