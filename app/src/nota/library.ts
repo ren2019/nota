@@ -1,7 +1,7 @@
 import { onLangChange, t } from '../i18n';
 import { provenanceFooterSource } from "./score-footer-source";
 import type { App } from "../editor/app";
-import { showConfirmDialog, showFormDialog, showUnsavedLibraryDialog } from "../editor/dialogs";
+import { showConfirmDialog, showFormDialog, showUnsavedLibraryDialog, openModal } from "../editor/dialogs";
 import { keyLabel } from "./convert";
 import "./library.css";
 import { CurrentDocumentSession, libraryRequest as request, LibraryError, writeLibraryScore, bytesBase64, type LibraryItem, type LibrarySaveResult } from "./document-session";
@@ -180,7 +180,16 @@ export function mountLibrary(app: App, revealWorkspace: (mode?: "practice" | "ed
         return {status:'saved',item:saved};
       }
       return {status:'changed',item:saved};
-    } catch(error) {app.setStatus(error instanceof Error ? error.message : String(error)); return {status:'failed'};}
+    } catch(error) {
+      const message=error instanceof Error ? error.message : String(error);
+      app.setStatus(message);
+      // Detail/home hide the professional status bar: a failed save must remain visible
+      // before replacement gates stop, rather than leaving an unexplained dirty draft.
+      const body=document.createElement('p');body.textContent=message;body.setAttribute('role','alert');
+      const dismiss=document.createElement('button');dismiss.type='button';dismiss.textContent=t('nota.ia.close');
+      const {close}=openModal({title:t('nota.ia.saveToLibrary'),body:[body],footer:[dismiss]});dismiss.onclick=close;
+      return {status:'failed'};
+    }
     finally {buttons.forEach(button => {button.disabled=false;button.textContent=t("nota.ia.saveToLibrary135");});}
   }
   function save(navigate=true):Promise<LibrarySaveResult> {

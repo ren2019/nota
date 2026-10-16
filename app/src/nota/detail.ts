@@ -60,7 +60,7 @@ export function mountDocumentDetail(app: App, session: CurrentDocumentSession, r
     query('nota-document-title').textContent = session.title;
     const status = session.current ? (session.dirty ? t("nota.ia.unsavedChanges") : t("nota.ia.librarySaved")) : t("nota.ia.currentDraftNotSavedTo");
     query('nota-document-status').textContent = session.recovered ? t('nota.ia.recoveredBanner',{status}) : status;
-    if(app.omr.hasInputs) query('nota-document-status').textContent += t("nota.ia.includesOriginalPleaseReview");
+    if(app.omr.snapshot()) query('nota-document-status').textContent += t("nota.ia.includesOriginalPleaseReview");
     saveButton.hidden = mode !== 'edit'; exportButton.hidden = mode !== 'practice';
     if(!saveButton.disabled) saveButton.textContent=t('nota.ia.saveToLibrary135');
     bar.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach(button => {

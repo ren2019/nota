@@ -13,6 +13,8 @@
     "score:prepare": "node scripts/prepare-score.mjs",
     "score:setup": "uv run --with music21==10.5.0 python -c \"import music21; print(music21.__version__)\"",
     "test:omr": "node app/scripts/check-omr.mjs",
-    "score:search": "node scripts/search-scores.mjs"
+    "score:search": "node scripts/search-scores.mjs",
+    "test:editor": "node app/scripts/check-editor-browser.mjs",
+    "test:journeys": "node app/scripts/check-app-journeys.mjs"
   }
 }

@@ -780,6 +780,7 @@ export const zh = {
   "fs.failed": "转换失败：{error}",
   "fs.converted": "已转成 {format}（未保存，原文件未改动；切回「原文」可还原）",
   "omr.formatSwitched": "已切换输出格式：{format}（未重新识别）",
+  "omr.noNotesFound": "未识别到音符，当前曲谱已保留。请检查图片或重新选择。",
   "omr.running": "识别中…可能需要几十秒",
   "omr.done": "识别完成（{sec}s）",
   "omr.beatIssues": "；{n} 个小节拍数与拍号对不上（核对视图已标红，多半是增时线/减时线读错）",
