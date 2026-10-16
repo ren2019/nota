@@ -89,7 +89,6 @@ export class FileSession {
       if (typeof sel !== "string") return false;
       const bytes = await readFile(sel);
       if(!(await this.host.openBytes(bytes,sel,true))) return false;
-      this.host.filePath = sel;
       this.rememberLastFile(sel);
       return true;
     }
@@ -112,7 +111,6 @@ export class FileSession {
         if (!file) { finish(false); return; }
         const buf = new Uint8Array(await file.arrayBuffer());
         if(!(await this.host.openBytes(buf,file.name,true))) {finish(false);return;}
-        this.host.filePath = file.name;
         finish(true);
       };
       window.addEventListener("focus", () => setTimeout(() => {

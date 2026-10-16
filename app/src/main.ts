@@ -582,7 +582,6 @@ async function wireDragDrop(app: App, dropTarget: HTMLElement, hooks: DropHooks)
         if (!isDocFile(path)) return;
         const bytes = await readFile(path);
         if(!(await app.openBytes(bytes,path,true))) return;
-        app.filePath = path;
         app.rememberLastFile(path);
         hooks.onOpened();
       }
