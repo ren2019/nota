@@ -626,6 +626,12 @@ async function wireDragDrop(app: App, dropTarget: HTMLElement, hooks: DropHooks)
 }
 
 window.addEventListener("DOMContentLoaded", () => {
+  // Throwaway IA lab on the existing route; never boot the real editor or its
+  // persistence while evaluating variants. Production builds exclude this gate.
+  if (import.meta.env.DEV && new URLSearchParams(location.search).has("variant")) {
+    void import("./nota/ia-prototype/mount").then((m) => m.mountIAPrototype());
+    return;
+  }
   boot().catch((e) => {
     console.error(e);
     document.body.insertAdjacentHTML(
