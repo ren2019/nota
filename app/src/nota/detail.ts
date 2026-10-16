@@ -5,6 +5,9 @@ import './detail.css';
 
 export type DetailMode = 'practice' | 'edit';
 export type DocumentScreen = 'library' | 'detail' | 'editor';
+let draftSequence = 0;
+// Navigation identity only; LAN HTTP and older PWA browsers need no secure-context API.
+const newDraftKey = () => `draft-${Date.now().toString(36)}-${++draftSequence}`;
 interface Route { nota: true; screen: DocumentScreen; mode: DetailMode; id: string | null; draft: string }
 
 /** Shell around the original DOM and App, never a second editor or a copy of the score. */
@@ -35,7 +38,7 @@ export function mountDocumentDetail(app: App, session: CurrentDocumentSession, r
   const actionSlot = query<HTMLElement>('nota-document-actions');
   let screen: DocumentScreen = 'library';
   let mode: DetailMode = 'practice';
-  let draft = crypto.randomUUID();
+  let draft = newDraftKey();
   let navigating = false;
   const positions = new Map<string,number>();
   const key = () => session.current?.id ?? draft;
@@ -118,7 +121,7 @@ export function mountDocumentDetail(app: App, session: CurrentDocumentSession, r
     session, practiceControls, actionSlot, saveButton, exportButton, tuneButton, editButton,
     get screen(){return screen;}, get mode(){return mode;}, get documentKey(){return key();},
     refresh,
-    open(nextMode:DetailMode='edit') { if(!session.current) draft=crypto.randomUUID(); navigate('detail',nextMode); },
+    open(nextMode:DetailMode='edit') { if(!session.current) draft=newDraftKey(); navigate('detail',nextMode); },
     home(){navigate('library');},
     showEditor(){navigate('editor','edit');},
     showDetail(nextMode:DetailMode=mode){navigate('detail',nextMode);},
