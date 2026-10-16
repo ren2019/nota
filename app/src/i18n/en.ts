@@ -2,6 +2,10 @@
 import type { MsgKey } from "./zh";
 
 export const en: Record<MsgKey, string> = {
+  "settings.tab.jianpu": "Jianpu output",
+  "settings.jianpu.hint": "Applies immediately on this device. Source and playback are unchanged; required naturals are always retained.",
+  "settings.jianpu.explicit": "Mark every altered note (default) · 1 ♭3 5 ♭3",
+  "settings.jianpu.measure": "Carry within the measure · 1 ♭3 5 3",
   // 应用与页头
   "app.windowTitle": "Nota",
   "header.home": "Home",

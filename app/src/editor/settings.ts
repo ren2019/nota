@@ -6,11 +6,15 @@
 //
 // 存取一律吞异常：隐私模式 / 存储满 / 存量数据损坏都不该让编辑器起不来。
 
+import { jianpuAccidentalMode } from "../nota/jianpu-output";
+
 const KEY = "dolce-render-settings";
 
 /** 存下来的东西。全部可选——旧版本存的数据缺字段是正常的。
  *  取值一律当 unknown 校验（存量数据可能是任何东西）。 */
 export interface PersistedSettings {
+  /** Global jianpu display preference; validate at the storage boundary. */
+  jianpuAccidentals?: unknown;
   /** 样式用户层（`App._userLayers`：每个主题一组 `StyleRule`）。交 `sanitizeLayer` 校验。 */
   styleLayers?: unknown;
   zoom?: number;
@@ -55,7 +59,9 @@ export function loadPersistedSettings(): PersistedSettings | null {
     const raw = localStorage.getItem(KEY);
     if (!raw) return null;
     const v: unknown = JSON.parse(raw);
-    return v && typeof v === "object" ? (v as PersistedSettings) : null;
+    return v && typeof v === "object"
+      ? { ...v, jianpuAccidentals: jianpuAccidentalMode((v as PersistedSettings).jianpuAccidentals) }
+      : null;
   } catch {
     return null; // 存量数据损坏 / 存储不可用
   }

@@ -8,6 +8,7 @@ import { ORIGINAL_PAPERS, PAGE_RATIOS, PAPER_SIZES } from "../style/themes";
 import { CONVERT_TARGETS } from "../model/convert";
 import { getLangPref, setLangPref, t, type LangPref, type MsgKey } from "../i18n";
 import { targetLabel } from "../i18n/labels";
+import { jianpuAccidentalMode } from "../nota/jianpu-output";
 
 /** 模态框的底座：遮罩 + 盒（标题 / 内容 / 页脚）、Esc 与点遮罩关闭。按钮与内容由调用方给。
  *  `close` 可重复调用，`onClose` 只回一次（不论是按钮、Esc 还是点遮罩关的）。 */
@@ -439,10 +440,29 @@ function settingsTabs(pages: readonly [string, string, HTMLElement][]): HTMLElem
 }
 
 export function showOptionsDialog(app: App): void {
-  // 三个标签页：版面 / 页眉与样式 / 其他（一页摆全太高，小屏上确定按钮都够不着）
+  const initialAccidentalMode = app.jianpuAccidentals;
+  // 分标签页摆版面、页眉、简谱输出与其他，避免小屏放不下确定按钮。
   const pLayout = document.createElement("div");
   const pHeader = document.createElement("div");
   const pOther = document.createElement("div");
+  const pJianpu = document.createElement("div");
+  const outputHint = document.createElement("p");
+  outputHint.textContent = t("settings.jianpu.hint");
+  pJianpu.append(outputHint);
+  for (const mode of ["explicit", "measure"] as const) {
+    const label = document.createElement("label");
+    label.style.cssText = "display:flex;align-items:center;gap:8px;margin:12px 0;min-height:40px";
+    const input = document.createElement("input");
+    input.type = "radio";
+    input.name = "jianpu-accidentals";
+    input.value = mode;
+    input.checked = mode === app.jianpuAccidentals;
+    input.onchange = () => { if (input.checked) app.setJianpuAccidentals(jianpuAccidentalMode(input.value)); };
+    const text = document.createElement("span");
+    text.textContent = t(mode === "explicit" ? "settings.jianpu.explicit" : "settings.jianpu.measure");
+    label.append(input, text);
+    pJianpu.append(label);
+  }
 
   const view = app.viewMode;
   const isMixed = app.mode === "mixed"; // 五线谱 / 混排
@@ -650,6 +670,7 @@ export function showOptionsDialog(app: App): void {
   const body = settingsTabs([
     ["layout", t("settings.tab.layout"), pLayout],
     ["header", t("settings.tab.header"), pHeader],
+    ["jianpu", t("settings.tab.jianpu"), pJianpu],
     ["other", t("settings.tab.other"), pOther],
   ]);
 
@@ -685,7 +706,7 @@ export function showOptionsDialog(app: App): void {
     }
     if (showNoteSound && noteSound.checked !== app.visual.noteSound) app.visual.setNoteSound(noteSound.checked);
     if (langSel.value !== getLangPref()) setLangPref(langSel.value as LangPref);
-  }, undefined, isMixed ? undefined : {
+  }, () => app.setJianpuAccidentals(initialAccidentalMode), isMixed ? undefined : {
     // 清掉当前档（展开 / 原样）的用户层，回到内置主题；另一档与声部音量不动
     label: t("settings.reset"),
     onClick: () => app.resetRenderSettings(),

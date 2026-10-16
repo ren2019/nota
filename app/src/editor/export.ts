@@ -142,13 +142,16 @@ function exportPage(app: App, index: number, context: FooterContext): SVGSVGElem
 export async function jianpuPngPages(app: App): Promise<{ name: string; bytes: Uint8Array; width: number; height: number }[]> {
   await app.whenIdle();
   if (app.mode !== "jp" || !app.painter.pageCount) throw new Error("请先切换到简谱预览。");
-  const pages = [];
   const context = exportFooterContext();
-  for (let i = 0; i < app.painter.pageCount; i++) {
-    const svg = exportPage(app, i, context);
+  // Render all pages before the first asynchronous rasterization. A setting or
+  // document change during a long export must not mix two output projections.
+  const title = baseName(app);
+  const snapshots = Array.from({ length: app.painter.pageCount }, (_, i) => exportPage(app, i, context));
+  const pages = [];
+  for (const [i, svg] of snapshots.entries()) {
     const { width, height } = svgSize(svg);
     pages.push({
-      name: `${baseName(app)}-${i + 1}.png`,
+      name: `${title}-${i + 1}.png`,
       bytes: await svgToBytes(svg, 300 / 72, "#fff"), width, height,
     });
   }

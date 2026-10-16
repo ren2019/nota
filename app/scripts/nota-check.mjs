@@ -14,6 +14,9 @@ await import(pathToFileURL(footerOutput).href);
 const engravingOutput = path.join(root, "out/nota-engraving-check.mjs");
 await build({ entryPoints: [path.join(root, "src/nota/engraving.check.ts")], outfile: engravingOutput, bundle: true, platform: "node", format: "esm" });
 await import(pathToFileURL(engravingOutput).href);
+const jianpuOutput = path.join(root, "out/nota-jianpu-output-check.mjs");
+await build({ entryPoints: [path.join(root, "src/nota/jianpu-output.check.ts")], outfile: jianpuOutput, bundle: true, platform: "node", format: "esm" });
+await import(pathToFileURL(jianpuOutput).href);
 
 const octaveOutput = path.join(root, "out/nota-octave-check.mjs");
 await build({entryPoints:[path.join(root,"src/nota/octave.check.ts")],outfile:octaveOutput,bundle:true,platform:"node",format:"esm"});
