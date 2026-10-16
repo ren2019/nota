@@ -130,7 +130,7 @@ export function mountDocumentDetail(app: App, session: CurrentDocumentSession, r
       navigationListeners.add(listener); return () => navigationListeners.delete(listener);
     },
     open(nextMode:DetailMode='edit') { if(!session.current) draft=newDraftKey(); navigate('detail',nextMode); },
-    home(){navigate('library');},
+    home(replace=false){navigate('library',mode,replace);},
     showSearch(){navigate('search');},
     showEditor(){navigate('editor','edit');},
     showDetail(nextMode:DetailMode=mode){navigate('detail',nextMode);},

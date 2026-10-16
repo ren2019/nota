@@ -1,0 +1,13 @@
+#nota-document-actions #nota-library-more { width:44px; min-width:44px; padding:0; font-size:24px; background:transparent; }
+.nota-management-box { width:min(400px,calc(100vw - 24px)); min-width:0; max-height:calc(100dvh - 24px); overflow:auto; }
+.nota-management-box .modal-title { overflow-wrap:anywhere; }
+.nota-management-body { display:grid; gap:12px; }
+.nota-management-body label { display:grid; gap:8px; font-size:14px; }
+.nota-management-body input { width:100%; min-width:0; min-height:44px; border:1px solid var(--border); background:var(--panel); color:var(--text); border-radius:8px; padding:8px 10px; font-size:16px; }
+.nota-management-body p,.nota-management-menu p { margin:0; font-size:13px; line-height:1.7; overflow-wrap:anywhere; }
+.nota-management-body .nota-management-error { color:var(--error); }
+.nota-management-menu { display:grid; gap:8px; }
+.nota-management-menu button { min-height:48px; text-align:left; padding:10px 12px; border:1px solid var(--border); border-radius:8px; background:transparent; color:inherit; cursor:pointer; }
+.nota-management-menu button:disabled { opacity:.45; cursor:default; }
+.nota-management-menu .nota-management-delete,.nota-management-box .modal-footer .nota-management-delete { color:#ff8e8e; border-color:#b24f4f; }
+.nota-management-box .modal-footer button { min-height:44px; }

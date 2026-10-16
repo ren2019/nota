@@ -750,7 +750,7 @@ export class App implements OmrHost, PlaybackHost, FormatHost, FormatSwitchHost,
       noteSound: this.visual.noteSound,
       showPalette: this.visual.showPalette,
     });
-    if(this.view) this.files._scheduleDraft();
+    if(this.view) { this.files._scheduleDraft(); this.documentStateChanged?.(); }
   }
 
   // ---------------- zoom ----------------
@@ -786,6 +786,7 @@ export class App implements OmrHost, PlaybackHost, FormatHost, FormatSwitchHost,
         this.omr.remapMeta((m) => mapMeta(m, u.changes));
         this.scheduleReload();
         this.files._scheduleDraft();
+        this.documentStateChanged?.();
       }
       // 光标/选区一动就同步到谱面。文档改了不在这里同步——索引还是旧偏移，
       // 等 reload 重建完索引再由 _buildSync 刷一次。
@@ -2689,6 +2690,7 @@ export class App implements OmrHost, PlaybackHost, FormatHost, FormatSwitchHost,
   saveFile(): Promise<void> { return this.saveToLibrary ? this.saveToLibrary() : this.files.saveFile(); }
   saveFileAs(): Promise<void> { return this.files.saveFileAs(); }
   saveAsFormat(target: ConvertTarget): Promise<void> { return this.files.saveAsFormat(target); }
+  documentStateChanged: (() => void) | null = null;
   libraryDirty: (() => boolean) | null = null;
   beforeReplace: ((closing: boolean) => Promise<boolean>) | null = null;
   draftContext: (() => Draft["nota"]) | null = null;
