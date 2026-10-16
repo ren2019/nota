@@ -334,7 +334,7 @@ async function boot() {
 
   // paging / zoom keys
   window.addEventListener("keydown", (e) => {
-    if (detail.screen === "library") return;
+    if (detail.screen === "library" || detail.screen === "search") return;
     const mod = e.ctrlKey || e.metaKey;
     if (mod && (e.key === "=" || e.key === "+")) { e.preventDefault(); app.zoomBy(1.2); updateZoom(); }
     else if (mod && e.key === "-") { e.preventDefault(); app.zoomBy(1 / 1.2); updateZoom(); }
