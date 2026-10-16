@@ -1,0 +1,19 @@
+# Local reference checkouts and development artifacts
+.upstream/
+.DS_Store
+node_modules/
+dist/
+build/
+coverage/
+.venv/
+__pycache__/
+*.pyc
+*.log
+
+# Credentials stay local; templates may be committed
+.env
+.env.*
+!.env.example
+
+# User-provided scores and generated printouts
+local/

@@ -1,0 +1,32 @@
+[
+  {
+    "id": "usa",
+    "title": "星条旗 · 美国国歌",
+    "aliases": "星条旗永不落 The Star-Spangled Banner",
+    "edition": "1919 Service Version，V:1 主旋律",
+    "url": "https://trillian.mit.edu/~jc/music/abc/anthem/song/Star_Spangled_Banner_Bbw_4v.abc",
+    "license": "源文件声明 1919 谱本在美国属于公有领域；数字转录权利仍需按使用地区确认",
+    "format": "abc",
+    "voice": "1"
+  },
+  {
+    "id": "internationale",
+    "title": "国际歌",
+    "aliases": "The Internationale",
+    "edition": "1920 谱本，Choir 声部",
+    "url": "https://www.gutenberg.org/files/69486/69486-h/music/music056-057.mxl",
+    "license": "Project Gutenberg：Public domain in the USA；其他地区须另核对",
+    "format": "musicxml",
+    "part": 0
+  },
+  {
+    "id": "brahms",
+    "title": "摇篮曲 · 勃拉姆斯",
+    "aliases": "Brahms Wiegenlied Lullaby 儿歌",
+    "edition": "Op.49 No.4，Singstimme 声部",
+    "url": "https://raw.githubusercontent.com/OpenScore/Lieder/38c5db510224d9facdc4b08d741fc788cfb58ea8/scores/Brahms%2C_Johannes/5_Lieder%2C_Op.49/4_Wiegenlied/lc5701612.mxl",
+    "license": "OpenScore Lieder · CC0-1.0",
+    "format": "musicxml",
+    "part": 0
+  }
+]

@@ -1,0 +1,44 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+*.local
+
+# 程序产出统一放 out/：dist（网页构建）、cli（Node 侧构建）、pkg（OMR 包）、vision-ocr，
+# 以及回归/成书脚本的报告与缓存（pdf、staff、pptx、pdf-diff、pdf-pages、phrase-cache …）
+/out/
+
+# 测试语料与 GT 不入本仓库（语料本身是版权材料），实体在同级私有仓库 dev/testdata/，这里是指过去的符号链接。
+# testdata/ 只放语料与 GT；回归基线、快照、报告等派生数据在 dev/data/。
+/testdata
+
+# pdf.js 位图解码器 wasm：来自 pdfjs-dist 包，构建时从 node_modules 拷入（见 vite.config.ts），不入库
+public/redist/pdfjs
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# 国标（简谱/五线谱通用规范）原件与转出的 md，本地参考，不入库
+docs/规范/
+
+
+# ss 语法收敛的待办（本地保留，不入库）
+docs/ss-收敛待办.md
+
+
+# 回归脚本、语料与歌本样式：本地私有仓库（与本仓库同级的 dev/），不入库
+dev/

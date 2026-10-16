@@ -1,0 +1,112 @@
+import { defineConfig, type Plugin } from "vite";
+import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { en } from "./src/i18n/en";
+import { notaLibrary } from "./server/library.mjs";
+import { notaScoreSources } from "./server/score-import.mjs";
+
+// @ts-expect-error import.meta.dirname 在 Vite 的 ESM 配置里可用（node ≥20 亦有）
+const here = typeof import.meta.dirname === "string" ? import.meta.dirname : dirname(fileURLToPath(import.meta.url));
+
+// pdf.js v6 的位图解码器 wasm（jbig2 兼管 CCITTFax G4，供 OMR 读扫描版乐谱 PDF）来自
+// `pdfjs-dist` 包，版本随 package-lock 锁定 → 不入库，改为构建/开发启动时从 node_modules 拷到
+// public/redist/pdfjs/（pdf.js 按固定文件名 fetch `${wasmUrl}jbig2.wasm`，故不能走 Vite ?url 的 hash 资源）。
+function copyPdfjsWasm(): Plugin {
+  const files = ["jbig2.wasm", "jbig2_nowasm_fallback.js", "openjpeg.wasm", "openjpeg_nowasm_fallback.js", "qcms_bg.wasm"];
+  const src = `${here}/node_modules/pdfjs-dist/wasm`;
+  const dst = `${here}/public/redist/pdfjs`;
+  const copy = () => { mkdirSync(dst, { recursive: true }); for (const f of files) copyFileSync(`${src}/${f}`, `${dst}/${f}`); };
+  return { name: "copy-pdfjs-wasm", buildStart: copy, configureServer: copy };
+}
+
+// 英文落地页 `/en/`（SEO）：构建完把产出的 index.html 复制一份到 en/index.html——
+// `<!-- seo:start -->…<!-- seo:end -->` 换成 seo/head.en.html，`<html>` 标成英文（`data-ui-lang` 让
+// 界面默认英文，见 i18n/index.ts），带 data-i18n* 的静态文字按英文词典预译（爬虫拿到的正文就是英文）。
+// 资源引用都是 base 绝对路径，两页共用同一套产物。
+function emitEnPage(): Plugin {
+  let outDir = "out/dist";
+  const dict = en as Record<string, string>;
+  const esc = (v: string) => v.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return {
+    name: "emit-en-page",
+    apply: "build",
+    configResolved(c) { outDir = c.build.outDir; },
+    writeBundle() {
+      const zhHtml = readFileSync(`${here}/${outDir}/index.html`, "utf-8");
+      const head = readFileSync(`${here}/seo/head.en.html`, "utf-8");
+      let html = zhHtml.replace(/<!-- seo:start[\s\S]*?<!-- seo:end -->/, () => head.trim());
+      if (html === zhHtml) throw new Error("emit-en-page: index.html 里没有 seo:start / seo:end 标记");
+      html = html.replace(/<html lang="zh-CN">/, '<html lang="en" data-ui-lang="en">');
+      // 开始标签上的 data-i18n-title / -aria / -placeholder → 改对应属性
+      html = html.replace(/<[a-zA-Z][^>]*\sdata-i18n[^>]*>/g, (tag) => {
+        for (const [attr, target] of [["title", "title"], ["aria", "aria-label"], ["placeholder", "placeholder"]]) {
+          const key = new RegExp(`\\sdata-i18n-${attr}="([^"]+)"`).exec(tag)?.[1];
+          const val = key && dict[key];
+          if (val) tag = tag.replace(new RegExp(`(\\s${target}=")[^"]*"`), (_m, p1: string) => `${p1}${esc(val)}"`);
+        }
+        return tag;
+      });
+      // data-i18n 的纯文本内容
+      html = html.replace(/(<[a-zA-Z][^>]*\sdata-i18n="([^"]+)"[^>]*>)([^<]*)</g, (m, open: string, key: string) => {
+        const val = dict[key];
+        return val ? `${open}${esc(val)}<` : m;
+      });
+      mkdirSync(`${here}/${outDir}/en`, { recursive: true });
+      writeFileSync(`${here}/${outDir}/en/index.html`, html);
+    },
+  };
+}
+
+// 应用版本号只在 package.json 维护一处（release.sh 同步 tauri.conf.json / Cargo.toml），
+// 构建期注入成 __APP_VERSION__ 供「关于」页与更新检查用——别在前端再抄一份常量。
+const pkgVersion = JSON.parse(readFileSync(`${here}/package.json`, "utf-8")).version as string;
+
+// @ts-expect-error process is a nodejs global
+const host = process.env.TAURI_DEV_HOST;
+
+// GitHub Pages 项目页部署在子路径下（BASE_PATH=/dolce/）。Tauri 桌面构建
+// 不设此 env，base 保持 "/"，桌面包资源解析不受影响。
+// @ts-expect-error process is a nodejs global
+const base = process.env.BASE_PATH || "/";
+// @ts-expect-error process is a Node.js global
+const notaAllowedHosts = (process.env.NOTA_ALLOWED_HOSTS || "").split(",").map((s: string) => s.trim().toLowerCase()).filter(Boolean);
+
+// https://vite.dev/config/
+export default defineConfig(async () => ({
+  base,
+  plugins: [copyPdfjsWasm(), emitEnPage(), notaLibrary(process.env.NOTA_LIBRARY_DIRECTORY), notaScoreSources()],
+  define: { __APP_VERSION__: JSON.stringify(pkgVersion) },
+  // 程序产出一律放 out/（构建、脚本报告、缓存），web 根下不再散落输出目录
+  build: { outDir: "out/dist", emptyOutDir: true },
+  preview: { allowedHosts: notaAllowedHosts },
+
+  // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
+  //
+  // 1. prevent Vite from obscuring rust errors
+  clearScreen: false,
+  // 2. tauri expects a fixed port, fail if that port is not available
+  server: {
+    port: 1420,
+    strictPort: true,
+    host: host || false,
+    // 跨源隔离：让 onnxruntime-web 拿到 SharedArrayBuffer 以开 wasm 多线程（OMR rec 推理 ~2x）。
+    // 全站资源同源，COEP require-corp 无副作用。多线程初始化带超时回退，开不起来会自动退单线程。
+    // 注意：生产 GitHub Pages 无法设响应头 → 那里非隔离，desiredThreads 自动返回 1（仍享数字批量加速）。
+    headers: {
+      "Cross-Origin-Opener-Policy": "same-origin",
+      "Cross-Origin-Embedder-Policy": "require-corp",
+    },
+    hmr: host
+      ? {
+          protocol: "ws",
+          host,
+          port: 1421,
+        }
+      : undefined,
+    watch: {
+      // 3. tell Vite to ignore watching `src-tauri`；out/ 是构建与脚本产出，写报告不该触发重载
+      ignored: ["**/src-tauri/**", "**/out/**"],
+    },
+  },
+}));
