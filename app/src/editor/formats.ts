@@ -1,3 +1,4 @@
+import { is123File, isJcxFile, isJlyFile, isPuFile } from '../common/filetypes';
 // 源格式适配器注册表。**每加一种可编辑的源格式，只该动这张表**。
 //
 // 以前每种格式的差异是 `app.ts` 里散在约二十处的 `docFormat === "pu"` 三目式：
@@ -44,6 +45,16 @@ import { DIALECT_PU } from "./visual/dialects/pu";
 
 /** 可打开的源格式。`musicxml` 没有代码区（`caps.textEditor === false`），只看谱面、转成文本格式再编辑。 */
 export type DocFormatId = "jpwabc" | "pu" | "123" | "abc" | "musicxml" | "jly" | "jcx";
+
+/** Extension routing is shared by actual import and input validation. Project envelopes are handled before this. */
+export function sourceFormatForFile(name:string):DocFormatId {
+  if(/\.abc$/i.test(name)) return 'abc';
+  if(is123File(name)) return '123';
+  if(isJlyFile(name)) return 'jly';
+  if(isJcxFile(name)) return 'jcx';
+  if(isPuFile(name)) return 'pu';
+  return /\.(xml|musicxml)$/i.test(name) ? 'musicxml' : 'jpwabc';
+}
 
 /** 适配器向 App 要的那些能力（**列全**，加一条就想想是不是该留在 App 里）。 */
 export interface FormatHost {

@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import type { App, ViewMode, DocumentLayoutState } from '../editor/app';
 import type { DocFormatId } from '../editor/formats';
 import { packProject, unpackProject } from '../editor/omrproject';
@@ -8,10 +9,16 @@ export interface LibraryItem {
   id: string; title: string; format: DocFormatId; key: string; meter: string;
   updatedAt: string; revision: number; source?: SourceProvenance;
 }
+/** Serialized songs/drafts carry layout, never browser-wide Nota output preferences. Legacy fields are ignored on restore. */
+type RecordRenderState=Omit<DocumentLayoutState,'jianpuAccidentals' | 'practiceFontSize'> & Partial<Pick<DocumentLayoutState,'jianpuAccidentals' | 'practiceFontSize'>>;
+export function documentRenderState(value:RecordRenderState):Omit<RecordRenderState,'jianpuAccidentals' | 'practiceFontSize'> {
+  const {jianpuAccidentals:_accidentals,practiceFontSize:_preset,...layout}=value;
+  return layout;
+}
 export interface LibraryPresentation {
   mode: ViewMode; noteSize: number; paper: string;
   orientation: 'portrait' | 'landscape'; margin: number[] | null;
-  render?: DocumentLayoutState;
+  render?: RecordRenderState;
 }
 export interface LibraryScore extends LibraryItem {
   text: string; project?: string; presentation?: LibraryPresentation;
@@ -22,9 +29,9 @@ export class LibraryError extends Error {
 export async function libraryRequest<T>(path = '', options?: RequestInit, endpoint = '/api/library'): Promise<T> {
   let response: Response;
   try { response = await fetch(`${endpoint}${path}`, options); }
-  catch { throw new Error('暂时连接不到曲谱库，请确认 Nota 服务正在运行。'); }
+  catch { throw new Error(t("nota.ia.cannotConnectToTheLibrary")); }
   const body = await response.json().catch(() => null);
-  if (!response.ok || body === null) throw new LibraryError(body?.error ?? '曲谱库暂时不可用，请稍后重试。', response.status);
+  if (!response.ok || body === null) throw new LibraryError(body?.error ?? t("nota.ia.theLibraryIsTemporarilyUnavailable"), response.status);
   return body as T;
 }
 export type LibrarySubmission = Omit<LibraryScore, 'id' | 'revision' | 'updatedAt'>;
@@ -69,17 +76,18 @@ function fingerprint(value:unknown):string {
   return JSON.stringify(value,(_key,entry:unknown) => entry instanceof Uint8Array ? bytesBase64(entry) : entry instanceof Map ? {__map:[...entry]} : entry);
 }
 /** Read and validate before touching App: an invalid record must never reveal an old score as success. */
-export async function readLibraryScore(id: string, endpoint?: string): Promise<{ score: LibraryScore; project?: Uint8Array }> {
+export async function readLibraryScore(id: string, endpoint?: string, canAdopt:() => boolean = () => true): Promise<{ score: LibraryScore; project?: Uint8Array }> {
   const score = await libraryRequest<LibraryScore>(`/${encodeURIComponent(id)}`, undefined, endpoint);
-  if (score.id !== id || typeof score.text !== 'string' || !score.text.trim()) throw new Error('这份曲谱记录不完整，请返回曲谱库重新打开。');
+  if (score.id !== id || typeof score.text !== 'string' || !score.text.trim()) throw new Error(t("nota.ia.thisLibraryRecordIsIncomplete"));
   let project: Uint8Array | undefined;
   if (score.project) {
     try {
       project = Uint8Array.from(atob(score.project), c => c.charCodeAt(0));
       const snapshot = unpackProject(project);
-      if (snapshot.text !== score.text || snapshot.docFormat !== score.format) throw new Error('项目与正文不一致');
-    } catch { throw new Error('这份曲谱的原图项目暂时无法恢复，请返回曲谱库。'); }
+      if (snapshot.text !== score.text || snapshot.docFormat !== score.format) throw new Error(t("nota.ia.projectAndScoreTextDo"));
+    } catch { throw new Error(t("nota.ia.theOriginalImageProjectCannot")); }
   }
+  if(!canAdopt()) throw new Error(t("nota.ia.theDraftChangedWhileWaiting"));
   return {score, project};
 }
 
@@ -97,10 +105,10 @@ export class CurrentDocumentSession {
   constructor(readonly app: App) {}
   subscribe(listener: () => void): () => void { this.listeners.add(listener); return () => this.listeners.delete(listener); }
   notify(): void { this.listeners.forEach(listener => listener()); }
-  get title(): string { return this.current?.title || this.importedTitle || this.app.documentTitle() || '未命名曲谱'; }
+  get title(): string { return this.current?.title || this.importedTitle || this.app.documentTitle() || t("nota.ia.untitledScore"); }
   presentation(): LibraryPresentation {
     const page = this.app.paperState('jianpu').page;
-    return {mode:this.app.viewMode, noteSize:this.app.fontSize, paper:page.paper ?? 'A4', orientation:page.orientation ?? 'portrait', margin:Array.isArray(page.margin) ? page.margin : null,render:this.app.captureLayoutState()};
+    return {mode:this.app.viewMode, noteSize:this.app.fontSize, paper:page.paper ?? 'A4', orientation:page.orientation ?? 'portrait', margin:Array.isArray(page.margin) ? page.margin : null,render:documentRenderState(this.app.captureLayoutState())};
   }
   private fingerprint(): string {
     const project=this.app.omr.snapshot();
@@ -160,7 +168,7 @@ export class CurrentDocumentSession {
     const p=valid?.presentation;
     if(p && ['original','expanded','staff','mixed'].includes(p.mode)) {
       await this.app.setViewMode(p.mode);
-      if(p.render) this.app.restoreLayoutState(p.render);
+      if(p.render) this.app.restoreLayoutState(documentRenderState(p.render));
       else if(Number.isFinite(p.noteSize) && p.noteSize >= 8 && p.noteSize <= 72) this.app.applyRenderSettings({fontSize:p.noteSize,paper:{jianpu:{paper:p.paper,orientation:p.orientation,margin:p.margin}}});
       await this.app.whenIdle();
     }
@@ -168,16 +176,18 @@ export class CurrentDocumentSession {
     this.notify(); this.app.files._scheduleDraft();
   }
   async openLibrary(id: string): Promise<void> {
-    if(this.loading) throw new Error('正在打开曲谱，请稍候。');
+    if(this.loading) throw new Error(t("nota.ia.openingAScorePleaseWait"));
     this.loading=true;
-    const releaseDraft=this.app.suspendDraftWrites();
+    let releaseDraft=() => {};
     try {
-    const {score, project} = await readLibraryScore(id);
+    const before=this.capture();
+    const {score, project} = await readLibraryScore(id,undefined,() => this.matches(before));
+    releaseDraft=this.app.suspendDraftWrites();
     this.generation++;
     const opened=await this.app.runInputTransaction(async () => {
     this.app.playback.stop();
     if (project) {
-      if (!(await this.app.openProject(project, `${score.title}.dolce`))) throw new Error('这份曲谱的原图项目暂时无法打开。');
+      if (!(await this.app.openProject(project, `${score.title}.dolce`))) throw new Error(t("nota.ia.theOriginalImageProjectCannot114"));
     } else {
       this.app.omr.clear(); this.app.adoptText(score.format, score.text, null); this.app.formats.use(null);
     }
@@ -185,19 +195,19 @@ export class CurrentDocumentSession {
     const p = score.presentation;
     if (p && ['original','expanded','staff','mixed'].includes(p.mode)) {
       await this.app.setViewMode(p.mode);
-      if (p.render) this.app.restoreLayoutState(p.render);
+      if (p.render) this.app.restoreLayoutState(documentRenderState(p.render));
       else if (Number.isFinite(p.noteSize) && p.noteSize >= 8 && p.noteSize <= 72) this.app.applyRenderSettings({fontSize:p.noteSize, paper:{jianpu:{paper:p.paper,orientation:p.orientation === 'landscape' ? 'landscape' : 'portrait',margin:p.margin}}});
     }
     await this.app.whenIdle();
-    if (!this.app.scoreDoc()?.songs.length) throw new Error('这份曲谱暂时无法排版，请返回曲谱库检查原文件。');
+    if (!this.app.scoreDoc()?.songs.length) throw new Error(t("nota.ia.thisScoreCannotBeLaid"));
       return true;
     });
-    if(!opened) throw new Error(this.app.status || '这份曲谱无法打开，原稿已保留。');
+    if(!opened) throw new Error(this.app.status || t("nota.ia.thisScoreCouldNotBe"));
     this.active=true; this.recovered=false;
     this.source = score.source; this.importedTitle = undefined;
     this.app.exportSourceDescription = provenanceFooterSource(score.source);
     this.acceptSaved(score); this.app.markClean();
-    this.app.setStatus(`已从曲谱库打开「${score.title}」。`);
+    this.app.setStatus(t('nota.ia.libraryOpened',{title:score.title}));
     } finally {this.loading=false; releaseDraft();}
   }
 }

@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 import type { SourceCandidate, SourceItem } from "./source-import";
 
 export interface ScoreSourceTransport {
@@ -10,7 +11,7 @@ async function request<T>(path: string, data?: unknown): Promise<T> {
     method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(data),
   });
   const body = await response.json().catch(() => null);
-  if (!response.ok || !body) throw new Error(body?.error ?? "曲谱来源暂时不可用，请重试。");
+  if (!response.ok || !body) throw new Error(body?.error ?? t("nota.ia.scoreSourcesAreTemporarilyUnavailable"));
   return body;
 }
 export const scoreSourceTransport: ScoreSourceTransport = {
@@ -73,9 +74,9 @@ export class ScoreSearchSession {
     if (this.phase === "adopting") return;
     this.selected = null;
     await this.prepareWith(async () => {
-      if (file.size > 32 * 1024 * 1024) throw new Error("候选文件超过 32 MB。");
+      if (file.size > 32 * 1024 * 1024) throw new Error(t("nota.ia.theCandidateFileExceedsMb"));
       let data: unknown;
-      try { data = JSON.parse(await file.text()); } catch { throw new Error("文件不是有效的 Nota 曲谱候选 JSON。"); }
+      try { data = JSON.parse(await file.text()); } catch { throw new Error(t("nota.ia.theFileIsNotValid")); }
       return this.transport.validate(data);
     });
   }
@@ -84,7 +85,7 @@ export class ScoreSearchSession {
     this.candidate = null; this.error = ""; this.phase = "preparing"; this.notify();
     try {
       const candidate = await work(); if (version !== this.prepareVersion) return;
-      if (candidate.schema !== "nota.score-candidate.v1" || !candidate.sourceCompared || !candidate.text?.trim() || !candidate.source?.url) throw new Error("来源校验没有通过，不能打开此候选。");
+      if (candidate.schema !== "nota.score-candidate.v1" || !candidate.sourceCompared || !candidate.text?.trim() || !candidate.source?.url) throw new Error(t("nota.ia.sourceValidationDidNotPass"));
       this.candidate = candidate; this.phase = "ready";
     } catch (e) {
       if (version !== this.prepareVersion) return;

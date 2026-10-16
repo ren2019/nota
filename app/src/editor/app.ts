@@ -34,9 +34,9 @@ import type { JpwMeta, JpwRange } from "../omrkit/types";
 import { loadConverter, type HanDirection } from "../common/hanconv";
 import { convertScoreDoc, convertSourceText, detectHanDirection } from "../model/hanconv";
 import { isTauriRuntime } from "./fileio";
-import { is123File, isJcxFile, isJlyFile, isProjectFile, isPuFile } from "../common/filetypes";
+import { isProjectFile } from "../common/filetypes";
 import type { Draft } from "./autosave";
-import { formatOf, musicXmlFormat, type DocFormatId, type FormatAdapter, type FormatHost, type ScoreDocAdapter } from "./formats";
+import { formatOf, sourceFormatForFile, musicXmlFormat, type DocFormatId, type FormatAdapter, type FormatHost, type ScoreDocAdapter } from "./formats";
 import { SyncIndex, type SyncEntry } from "./sync";
 import { VisualEditController, type VisualHost } from "./visual/controller";
 import { visualCursorExtension } from "./visual/cursor";
@@ -1992,7 +1992,7 @@ export class App implements OmrHost, PlaybackHost, FormatHost, FormatSwitchHost,
   inputBusy=false;
   /** One real editor transaction: failures restore its actual state, OMR bytes and layout before returning false. */
   async runInputTransaction(work:()=>Promise<boolean>):Promise<boolean> {
-    if(this.inputBusy) {this.setStatus('正在处理另一份输入，请稍候。');return false;}
+    if(this.inputBusy) {this.setStatus(t('nota.ia.inputBusy'));return false;}
     this.inputBusy=true;
     const releaseDraft=this.suspendDraftWrites();
     const root=document.getElementById('app'); const wasInert=root?.inert ?? false;
@@ -2012,13 +2012,13 @@ export class App implements OmrHost, PlaybackHost, FormatHost, FormatSwitchHost,
       const ok=await work();
       if(ok) return true;
       const reason=this.status;
-      await rollback(); this.setStatus(reason || '输入未完成，已保留原稿。'); return false;
+      await rollback(); this.setStatus(reason || t('nota.ia.inputKept')); return false;
     } catch(error) {
       try {await rollback();} catch(restoreError) {
         console.error('恢复当前稿失败',restoreError);
-        this.setStatus('输入失败，恢复原稿时也出现问题。请保留当前页面，并从已保存的曲谱或恢复稿重新打开。');return false;
+        this.setStatus(t('nota.ia.inputRestoreFailed'));return false;
       }
-      this.setStatus(`输入未完成，原稿已保留：${error instanceof Error ? error.message : String(error)}`);return false;
+      this.setStatus(t('nota.ia.inputError',{error:error instanceof Error ? error.message : String(error)}));return false;
     } finally {this.inputBusy=false;if(root) root.inert=wasInert;releaseDraft();}
   }
 
@@ -2096,71 +2096,26 @@ export class App implements OmrHost, PlaybackHost, FormatHost, FormatSwitchHost,
   }
 
   private _importBytes(bytes: Uint8Array, name: string): void {
-    // ABC 记谱：**原文就是源格式**，原生解析直接进编辑器（`formats.ts` 的 ABC 适配器），不再转 MusicXML。
-    if (/\.abc$/i.test(name)) {
-      this.mixed._dropMixedDoc(); // 原来在五线谱/混排就留在那档：setText → reload 会重新派生
-      this._setDocFormat("abc");
-      this.setText(formatOf("abc").decode(bytes));
-      return;
+    const format=sourceFormatForFile(name);
+    const text=formatOf(format).decode(bytes);
+    if(format === 'pu') {
+      const sniffed=sniffDialect(text);
+      if(sniffed.dialect === null) {this.setStatus(t('status.notPu',{reason:sniffed.reason}));return;}
     }
-    // 123（简谱主格式）：原文就是源格式，直接进编辑器，不做任何转换。
-    if (is123File(name)) {
-      this.mixed._dropMixedDoc();
-      this._setDocFormat("123");
-      this.setText(formatOf("123").decode(bytes));
-      return;
-    }
-    // jianpu-ly（`.jly`）：**只看扩展名** —— 上游输入里没有版本行 / 签名 / 必需项，
-    // 内容嗅探只能靠猜；`.jly` 是它自己 `--export-jly` 写出来的后缀，拿到它就是这个格式
-    // （详见 `model/fromjly.ts` 文件头）。
-    if (isJlyFile(name)) {
-      this.mixed._dropMixedDoc();
-      this._setDocFormat("jly");
-      this.setText(formatOf("jly").decode(bytes));
-      return;
-    }
-    // Muse 曲谱软件（`.jcx`）：ABC 方言，原生解析。字节编码（GBK / BIG5 / UTF-8）由 `common/jcxcodec.ts` 判断
-    if (isJcxFile(name)) {
-      this.mixed._dropMixedDoc();
-      this._setDocFormat("jcx");
-      this.setText(formatOf("jcx").decode(bytes));
-      return;
-    }
-    // 文本谱（番茄 / 诗歌本）：原文就是源格式，直接进编辑器，不做任何转换。
-    if (isPuFile(name)) {
-      const puText = formatOf("pu").decode(bytes);
-      const sniffed = sniffDialect(puText);
-      if (sniffed.dialect === null) {
-        // `.txt` 太泛，认不出宁可不动——硬解只会得到一首乱谱
-        this.setStatus(t("status.notPu", { reason: sniffed.reason }));
-        return;
-      }
-      this.mixed._dropMixedDoc();
-      this._setDocFormat("pu");
-      this.setText(puText);
-      return;
-    }
-    if (/\.(xml|musicxml)$/i.test(name)) {
-      // MusicXML：**没有代码区**，只进谱面视图（五线谱/混排，或由 `ScoreDoc` 排出的简谱）。
-      // 编辑器文档里存的就是 XML 原文（不显示）：存回原文件时没改过就是原文，零损耗。
-      // 要编辑就「转成文本格式」，那是另一份新文档（`convertToTextDoc`）。
-      const xml = formatOf("musicxml").decode(bytes);
-      this._setDocFormat("musicxml");
-      if (!this.mixed._setMixedXml(xml)) return;
+    if(format === 'musicxml') {
+      this._setDocFormat('musicxml');
+      if(!this.mixed._setMixedXml(text)) return;
       this._setMixedAvailable(true);
-      // 多声部（SATB 等）歌谱默认进入混排模式
-      const toMixed = this.mode === "mixed" || isMultiPartXml(xml);
-      if (toMixed) this._setMode("mixed");
-      else this._setMode("jp");
-      this.setText(xml);
-      if (toMixed) void this._renderMixedPages();
+      const toMixed=this.mode === 'mixed' || isMultiPartXml(text);
+      this._setMode(toMixed ? 'mixed' : 'jp');
+      this.setText(text);
+      if(toMixed) void this._renderMixedPages();
       return;
-    } else {
-      this._setDocFormat("jpwabc");
-      this.mixed._dropMixedDoc();
-      this._disablePhrase();
-      this.setText(formatOf("jpwabc").decode(bytes));
     }
+    this.mixed._dropMixedDoc();
+    this._setDocFormat(format);
+    if(format === 'jpwabc') this._disablePhrase();
+    this.setText(text);
   }
 
   /**

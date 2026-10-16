@@ -241,7 +241,7 @@ export class FileSession {
     this.restoringDraft=true;
     try {
       if(d.project) {
-        if(!(await this.host.openProject(d.project,d.filePath ?? '',{draft:true}))) throw new Error('原图项目无法恢复');
+        if(!(await this.host.openProject(d.project,d.filePath ?? '',{draft:true}))) throw new Error(t('nota.ia.projectRestoreFailed'));
       } else this.host.adoptText(d.docFormat as DocFormatId,d.text,d.filePath);
     } catch {
       this.lastRestoreFailed=true;

@@ -119,17 +119,17 @@ function modal(
 export function showUnsavedLibraryDialog(title:string, closing=false):Promise<'save' | 'discard' | 'cancel'> {
   return new Promise(resolve => {
     const body=document.createElement('p');
-    body.textContent=`「${title}」有尚未保存入库的修改。${closing ? '关闭前' : '替换当前稿前'}可以先保存到当前 Nota 服务的曲谱库；连接同一服务的家人可访问。`;
-    modal('保留当前曲谱的修改？',body,() => resolve('save'),() => resolve('cancel'),
-      {label:'放弃修改后继续',onClick:() => resolve('discard')},'保存后继续');
+    body.textContent=t('nota.ia.unsavedBody',{title,when:t(closing ? 'nota.ia.beforeClosing' : 'nota.ia.beforeReplacing')});
+    modal(t('nota.ia.unsavedTitle'),body,() => resolve('save'),() => resolve('cancel'),
+      {label:t('nota.ia.discardContinue'),onClick:() => resolve('discard')},t('nota.ia.saveContinue'));
   });
 }
 
 /** A completed async save can outlive browser user activation; this click opens the system picker directly. */
 export function openFilePicker(input:HTMLInputElement,onCancel?:()=>void):void {
   if(navigator.userActivation && !navigator.userActivation.isActive) {
-    const body=document.createElement('p');body.textContent='当前曲谱已保留。点击“选择文件”打开系统文件选择器。';
-    showFormDialog('选择输入文件',body,() => input.click(),'选择文件',onCancel);
+    const body=document.createElement('p');body.textContent=t('nota.ia.pickerActivation');
+    showFormDialog(t('nota.ia.chooseInput'),body,() => input.click(),t('nota.ia.chooseFile'),onCancel);
   } else input.click();
 }
 

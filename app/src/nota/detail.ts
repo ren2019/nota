@@ -1,3 +1,4 @@
+import { onLangChange, t } from '../i18n';
 import type { App } from '../editor/app';
 import type { CurrentDocumentSession } from './document-session';
 import { showExportDialog } from '../editor/export';
@@ -17,18 +18,18 @@ export function mountDocumentDetail(app: App, session: CurrentDocumentSession, r
   const scorePane = document.getElementById('score-pane')!;
   const bar = document.createElement('section');
   bar.id = 'nota-document-head';
-  bar.innerHTML = `<header class="nota-document-bar"><button type="button" id="nota-back" aria-label="返回曲谱库">‹</button><div class="nota-document-copy"><h1 id="nota-document-title"></h1><p id="nota-document-status" role="status"></p></div><div id="nota-document-actions"><button type="button" id="nota-detail-export">导出</button><button type="button" id="nota-detail-save">保存入库</button></div></header><nav class="nota-mode-tabs" aria-label="曲谱使用方式"><button type="button" data-mode="practice">练习</button><button type="button" data-mode="edit">编辑</button></nav>`;
+  bar.innerHTML = `<header class="nota-document-bar"><button type="button" id="nota-back" aria-label="${t("nota.ia.htmlBackToLibrary4")}" data-i18n-aria="nota.ia.htmlBackToLibrary4">‹</button><div class="nota-document-copy"><h1 id="nota-document-title"></h1><p id="nota-document-status" role="status"></p></div><div id="nota-document-actions"><button type="button" id="nota-detail-export"><span data-i18n="nota.ia.export">${t("nota.ia.export")}</span></button><button type="button" id="nota-detail-save"><span data-i18n="nota.ia.saveToLibrary135">${t("nota.ia.saveToLibrary135")}</span></button></div></header><nav class="nota-mode-tabs" aria-label="${t("nota.ia.htmlScoreMode5")}" data-i18n-aria="nota.ia.htmlScoreMode5"><button type="button" data-mode="practice"><span data-i18n="nota.ia.htmlPractice2">${t("nota.ia.htmlPractice2")}</span></button><button type="button" data-mode="edit"><span data-i18n="nota.ia.htmlEdit3">${t("nota.ia.htmlEdit3")}</span></button></nav>`;
   document.getElementById('app-header')!.after(bar);
   const dock = document.createElement('nav');
-  dock.id = 'nota-edit-dock'; dock.setAttribute('aria-label','曲谱编辑操作');
-  dock.innerHTML = `<button type="button" id="nota-detail-tune">♮<span>调式</span></button><button type="button" id="nota-edit-export">↥<span>导出</span></button><button type="button" id="nota-open-editor">✎<span>编辑</span></button>`;
+  dock.id = 'nota-edit-dock'; dock.setAttribute('aria-label',t("nota.ia.scoreEditingActions"));dock.dataset.i18nAria='nota.ia.scoreEditingActions';
+  dock.innerHTML = `<button type="button" id="nota-detail-tune">♮<span><span data-i18n="nota.ia.keyAndNotation">${t("nota.ia.keyAndNotation")}</span></span></button><button type="button" id="nota-edit-export">↥<span><span data-i18n="nota.ia.export">${t("nota.ia.export")}</span></span></button><button type="button" id="nota-open-editor">✎<span><span data-i18n="nota.ia.htmlEdit3">${t("nota.ia.htmlEdit3")}</span></span></button>`;
   document.getElementById('statusbar')!.before(dock);
   const practiceControls = document.createElement('section');
-  practiceControls.id = 'nota-practice-controls'; practiceControls.setAttribute('aria-label','练习控制');
+  practiceControls.id = 'nota-practice-controls'; practiceControls.setAttribute('aria-label',t("nota.ia.practiceControls"));practiceControls.dataset.i18nAria='nota.ia.practiceControls';
   dock.before(practiceControls);
   // Until T2 migrates the native screen, this real return path keeps every existing Dolce tool available.
   const editorBack = document.createElement('button');
-  editorBack.type='button'; editorBack.id='nota-editor-back'; editorBack.className='button button-secondary'; editorBack.textContent='返回曲谱详情';
+  editorBack.type='button'; editorBack.id='nota-editor-back'; editorBack.className='button button-secondary'; editorBack.textContent=t("nota.ia.backToScoreDetails");
   document.querySelector('.header-left')!.append(editorBack);
   const query = <T extends HTMLElement>(id:string) => document.getElementById(id) as T;
   const saveButton = query<HTMLButtonElement>('nota-detail-save');
@@ -57,10 +58,11 @@ export function mountDocumentDetail(app: App, session: CurrentDocumentSession, r
   };
   function refresh() {
     query('nota-document-title').textContent = session.title;
-    const status = session.current ? (session.dirty ? '有未保存的修改' : '曲谱库 · 已保存') : '当前稿 · 尚未保存入库';
-    query('nota-document-status').textContent = session.recovered ? `自动恢复稿 · ${status}` : status;
-    if(app.omr.hasInputs) query('nota-document-status').textContent += ' · 含原图，请人工校对';
+    const status = session.current ? (session.dirty ? t("nota.ia.unsavedChanges") : t("nota.ia.librarySaved")) : t("nota.ia.currentDraftNotSavedTo");
+    query('nota-document-status').textContent = session.recovered ? t('nota.ia.recoveredBanner',{status}) : status;
+    if(app.omr.hasInputs) query('nota-document-status').textContent += t("nota.ia.includesOriginalPleaseReview");
     saveButton.hidden = mode !== 'edit'; exportButton.hidden = mode !== 'practice';
+    if(!saveButton.disabled) saveButton.textContent=t('nota.ia.saveToLibrary135');
     bar.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach(button => {
       const active = button.dataset.mode === mode;
       button.classList.toggle('selected',active); button.setAttribute('aria-pressed',String(active));
@@ -68,6 +70,8 @@ export function mountDocumentDetail(app: App, session: CurrentDocumentSession, r
   }
   function display(next:DocumentScreen, nextMode=mode) {
     rememberPosition();
+    // Original-image comparison is a professional tool, not the rendered reading/detail surface.
+    if(next === 'detail' && app.mode === 'recognize') void app.setViewMode(app.docFormat === 'musicxml' ? (app.mixedShowJianpuLayer ? 'mixed' : 'staff') : app.viewMode);
     if (nextMode === 'edit' || next === 'library' || next === 'search') app.playback.stop();
     screen=next; mode=nextMode; visibleKey=key();
     delete root.dataset.notaTool;
@@ -91,7 +95,7 @@ export function mountDocumentDetail(app: App, session: CurrentDocumentSession, r
       if ((r.screen === 'detail' || r.screen === 'editor') && r.id && r.id !== session.current?.id) {
         if (!(await app.confirmReplace())) { history.pushState(route(),'',urlOf(route())); return; }
         await session.openLibrary(r.id);
-      } else if ((r.screen === 'detail' || r.screen === 'editor') && !r.id && r.draft !== draft) throw new Error('这份临时稿已无法恢复，请从曲谱库重新打开。');
+      } else if ((r.screen === 'detail' || r.screen === 'editor') && !r.id && r.draft !== draft) throw new Error(t("nota.ia.thisTemporaryDraftCannotBe"));
       display(r.screen,r.mode);
       history.replaceState(route(),'',urlOf(route()));
     } catch(e) {
@@ -116,6 +120,7 @@ export function mountDocumentDetail(app: App, session: CurrentDocumentSession, r
     if (screen === 'detail') event.stopImmediatePropagation();
   }, {capture:true});
   session.subscribe(refresh);
+  onLangChange(refresh);
   // App's render/status events mutate this element after text, undo, layout and format changes.
   new MutationObserver(refresh).observe(document.getElementById('status')!,{childList:true,characterData:true,subtree:true});
   const initialUrl=new URL(location.href);
@@ -139,7 +144,7 @@ export function mountDocumentDetail(app: App, session: CurrentDocumentSession, r
       if(initialScreen === 'search') {navigate('search',mode,true);return;}
       if(initialScreen === 'detail' || initialScreen === 'editor') {
         if(!initialId) {
-          const feedback=query('start-feedback'); feedback.textContent='这份临时稿已无法恢复，请从曲谱库重新打开。'; feedback.hidden=false;
+          const feedback=query('start-feedback'); feedback.textContent=t("nota.ia.thisTemporaryDraftCannotBe"); feedback.hidden=false;
           history.replaceState(route(),'',urlOf(route())); return;
         }
         await restore({nota:true,screen:initialScreen,mode:initialUrl.searchParams.get('mode') === 'edit' ? 'edit' : 'practice',id:initialId,draft});

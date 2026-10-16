@@ -1,3 +1,4 @@
+import { onLangChange, t } from '../i18n';
 import { provenanceFooterSource } from "./score-footer-source";
 import type { App } from "../editor/app";
 import { showConfirmDialog, showFormDialog, showUnsavedLibraryDialog } from "../editor/dialogs";
@@ -13,15 +14,15 @@ export function mountLibrary(app: App, revealWorkspace: (mode?: "practice" | "ed
   root.setAttribute("aria-labelledby", "library-title");
   root.innerHTML = `
     <div class="library-heading">
-      <div><span class="eyebrow">一起练习，慢慢收藏</span><h2 id="library-title">我们的曲谱库 <span id="library-count"></span></h2>
-      <p>把喜欢的曲子留在这里，下次接着练。</p></div>
-      <button id="library-refresh" class="library-refresh" type="button">刷新</button>
+      <div><span class="eyebrow"><span data-i18n="nota.ia.htmlPracticeTogetherKeepFavorites36">${t("nota.ia.htmlPracticeTogetherKeepFavorites36")}</span></span><h2 id="library-title"><span data-i18n="nota.ia.htmlOurScoreLibrary37">${t("nota.ia.htmlOurScoreLibrary37")}</span><span id="library-count"></span></h2>
+      <p><span data-i18n="nota.ia.htmlKeepFavoriteSongsHereAnd38">${t("nota.ia.htmlKeepFavoriteSongsHereAnd38")}</span></p></div>
+      <button id="library-refresh" class="library-refresh" type="button"><span data-i18n="nota.ia.htmlRefresh39">${t("nota.ia.htmlRefresh39")}</span></button>
     </div>
     <label class="library-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg>
-      <input id="library-search" type="search" placeholder="搜索曲名或调号" aria-label="搜索曲谱库" autocomplete="off"></label>
-    <p id="library-message" class="library-message" role="status" aria-live="polite">正在打开曲谱库…</p>
+      <input id="library-search" type="search" placeholder="${t("nota.ia.htmlSearchTitleOrKey42")}" data-i18n-placeholder="nota.ia.htmlSearchTitleOrKey42" aria-label="${t("nota.ia.htmlSearchScoreLibrary43")}" data-i18n-aria="nota.ia.htmlSearchScoreLibrary43" autocomplete="off"></label>
+    <p id="library-message" class="library-message" role="status" aria-live="polite"><span data-i18n="nota.ia.htmlOpeningTheScoreLibrary40">${t("nota.ia.htmlOpeningTheScoreLibrary40")}</span></p>
     <div id="library-list" class="library-list"></div>
-    <p class="library-location">曲谱保存在本机 Nota 服务中，访问同一服务的家人共享。</p>`;
+    <p class="library-location"><span data-i18n="nota.ia.htmlScoresAreStoredOnThis41">${t("nota.ia.htmlScoresAreStoredOnThis41")}</span></p>`;
   document.querySelector(".start-content")!.append(root);
   const search = root.querySelector<HTMLInputElement>("#library-search")!;
   const list = root.querySelector<HTMLDivElement>("#library-list")!;
@@ -39,16 +40,16 @@ export function mountLibrary(app: App, revealWorkspace: (mode?: "practice" | "ed
   function render() {
     const query = search.value.normalize("NFKC").toLocaleLowerCase().trim();
     const shown = items.filter((item) => `${item.title} ${item.key}`.normalize("NFKC").toLocaleLowerCase().includes(query));
-    count.textContent = `${shown.length} 首`;
+    count.textContent = t('nota.ia.libraryCount',{count:shown.length});
     list.replaceChildren();
     message.hidden = shown.length > 0;
     message.classList.remove("is-error");
-    message.textContent = query ? "没有找到这首曲子，试试别的曲名或调号。" : "还没有收藏的曲谱。打开或创作一首，在右上角保存到曲谱库。";
+    message.textContent = query ? t("nota.ia.noMatchingScoreTryAnother") : t("nota.ia.noSavedScoresYetOpen");
     for (const item of shown) {
       const row = document.createElement("button");
       row.type = "button";
       row.className = "library-item";
-      row.setAttribute("aria-label", `打开 ${item.title}`);
+      row.setAttribute("aria-label", t('nota.ia.libraryOpen',{title:item.title}));
       const icon = document.createElement("span");
       icon.className = "library-score-icon";
       icon.textContent = "♪";
@@ -58,11 +59,11 @@ export function mountLibrary(app: App, revealWorkspace: (mode?: "practice" | "ed
       const title = document.createElement("strong");
       title.textContent = item.title;
       const details = document.createElement("span");
-      details.textContent = [item.key, item.meter, item.format === "musicxml" ? "五线谱" : "简谱", item.source ? (item.source.edited ? "联网导入 · 已编辑" : "联网导入 · 导入时对照通过") : ""].filter(Boolean).join(" · ");
+      details.textContent = [item.key, item.meter, item.format === "musicxml" ? t("nota.ia.staffNotation") : t("nota.ia.jianpu"), item.source ? (item.source.edited ? t("nota.ia.onlineImportEdited") : t("nota.ia.onlineImportComparedOnImport")) : ""].filter(Boolean).join(" · ");
       copy.append(title, details);
       const time = document.createElement("time");
       time.dateTime = item.updatedAt;
-      time.textContent = new Date(item.updatedAt).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) + " 保存";
+      time.textContent = new Date(item.updatedAt).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) + t("nota.ia.saved");
       const arrow = document.createElement("span");
       arrow.textContent = "↗";
       arrow.className = "library-item-arrow";
@@ -120,34 +121,34 @@ export function mountLibrary(app: App, revealWorkspace: (mode?: "practice" | "ed
       const body = document.createElement("div");
       body.className = "library-save-form";
       const label = document.createElement("label");
-      label.textContent = "曲名";
+      label.textContent = t("nota.ia.title");
       const input = document.createElement("input");
-      input.value = session.current?.title ?? session.importedTitle ?? app.documentTitle() ?? "未命名曲谱";
+      input.value = session.current?.title ?? session.importedTitle ?? app.documentTitle() ?? t("nota.ia.untitledScore");
       input.maxLength = 120;
-      input.setAttribute("aria-label", "曲名");
+      input.setAttribute("aria-label", t("nota.ia.title"));
       label.append(input);
       body.append(label);
       const location=document.createElement("p");
-      location.textContent="保存到当前 Nota 服务的曲谱库，连接同一服务的家人可访问。";
+      location.textContent=t("nota.ia.savedInThisNotaService");
       body.append(location);
       const copy = document.createElement("input");
       copy.type = "checkbox";
       if (session.current) {
         const option = document.createElement("label");
         option.className = "library-copy-option";
-        option.append(copy, "另存一份，保留原曲谱");
+        option.append(copy, t("nota.ia.saveACopyAndKeep"));
         body.append(option);
       }
-      showFormDialog("保存到曲谱库", body, () => resolve({ title: input.value.trim() || "未命名曲谱", copy: copy.checked }), "保存", () => resolve(null));
+      showFormDialog(t("nota.ia.saveToLibrary"), body, () => resolve({ title: input.value.trim() || t("nota.ia.untitledScore"), copy: copy.checked }), t("nota.ia.save"), () => resolve(null));
       input.select();
     });
   }
 
   async function performSave(navigate:boolean):Promise<LibrarySaveResult> {
-    if(session.loading || app.inputBusy) {app.setStatus("正在处理输入，请稍候再保存。");return {status:'failed'};}
-    if (!app.getText().trim() || !app.scoreDoc()?.songs.length) { app.setStatus("请先打开或创作一份曲谱。"); return {status:'failed'}; }
+    if(session.loading || app.inputBusy) {app.setStatus(t("nota.ia.inputIsBeingProcessedWait"));return {status:'failed'};}
+    if (!app.getText().trim() || !app.scoreDoc()?.songs.length) { app.setStatus(t("nota.ia.openOrCreateAScore")); return {status:'failed'}; }
     const buttons=[saveButton,document.getElementById('nota-detail-save') as HTMLButtonElement | null].filter((button):button is HTMLButtonElement => !!button);
-    buttons.forEach(button => {button.disabled=true;button.textContent='正在保存…';});
+    buttons.forEach(button => {button.disabled=true;button.textContent=t("nota.ia.saving");});
     try {
       const named=await nameScore();
       if(!named) return {status:'cancelled'};
@@ -165,12 +166,12 @@ export function mountLibrary(app: App, revealWorkspace: (mode?: "practice" | "ed
       try {saved=await writeLibraryScore(payload,existing);}
       catch(error) {
         if(!(error instanceof LibraryError) || error.status !== 409) throw error;
-        if(!(await showConfirmDialog('曲谱已被家人更新','保留家人的更新，把刚提交的版本另存为一份新曲谱吗？当前新修改也会保留。'))) return {status:'cancelled'};
-        existing=null; saved=await writeLibraryScore({...payload,title:`${payload.title.slice(0,116)}（副本）`},null);
+        if(!(await showConfirmDialog(t("nota.ia.thisScoreWasUpdatedBy"),t("nota.ia.keepTheirUpdateAndSave")))) return {status:'cancelled'};
+        existing=null; saved=await writeLibraryScore({...payload,title:t('nota.ia.copyTitle',{title:payload.title.slice(0,116)})},null);
       }
       const unchanged=session.acceptSaved(saved,snapshot);
       if(unchanged) app.markClean(); else app.files._scheduleDraft();
-      app.setStatus(unchanged ? `已保存「${saved.title}」到当前 Nota 服务的曲谱库。` : `已保存刚提交的版本；当前的新修改尚未入库，请再次保存。`);
+      app.setStatus(unchanged ? t('nota.ia.librarySaved',{title:saved.title}) : t("nota.ia.theSubmittedVersionIsSaved"));
       await refresh();
       // Refresh is asynchronous too: a new edit made while it ran must keep the user in editing.
       const stillCurrent=session.matches(snapshot);
@@ -180,7 +181,7 @@ export function mountLibrary(app: App, revealWorkspace: (mode?: "practice" | "ed
       }
       return {status:'changed',item:saved};
     } catch(error) {app.setStatus(error instanceof Error ? error.message : String(error)); return {status:'failed'};}
-    finally {buttons.forEach(button => {button.disabled=false;button.textContent='保存入库';});}
+    finally {buttons.forEach(button => {button.disabled=false;button.textContent=t("nota.ia.saveToLibrary135");});}
   }
   function save(navigate=true):Promise<LibrarySaveResult> {
     if(inFlight) return inFlight;
@@ -211,10 +212,11 @@ export function mountLibrary(app: App, revealWorkspace: (mode?: "practice" | "ed
     if(!adopted) return false;
     session.detach(candidate.source,candidate.title);
     app.exportSourceDescription = provenanceFooterSource(session.source);
-    app.setStatus(`已打开「${candidate.title}」候选。来源数据对照通过；请核对版本与谱面，确认后保存到曲谱库。`);
+    app.setStatus(t('nota.ia.candidateOpened',{title:candidate.title}));
     revealWorkspace("edit");
     return true;
   }
+  onLangChange(render);
   search.addEventListener("input", render);
   root.querySelector("#library-refresh")!.addEventListener("click", () => void refresh());
   void refresh();
