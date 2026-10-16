@@ -34,7 +34,7 @@ export function mountPracticeControls(app: App, session: CurrentDocumentSession,
   const current = () => {
     const key=detail.documentKey;
     let value=prefs.get(key);
-    if(!value) { value={scale:matchMedia('(max-width:680px)').matches ? 1.5 : 1,lyrics:true}; prefs.set(key,value); }
+    if(!value) { value={scale:1,lyrics:true}; prefs.set(key,value); }
     return value;
   };
   function applyReading() {

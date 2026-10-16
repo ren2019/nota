@@ -84,7 +84,11 @@ export async function readLibraryScore(id: string, endpoint?: string, canAdopt:(
     try {
       project = Uint8Array.from(atob(score.project), c => c.charCodeAt(0));
       const snapshot = unpackProject(project);
-      if (snapshot.text !== score.text || snapshot.docFormat !== score.format) throw new Error(t("nota.ia.projectAndScoreTextDo"));
+      // Legacy imports prepended source comments to the library text after packing the project.
+      // Accept only that non-musical prefix; note edits, layout directives and format changes still fail.
+      const prefix=score.text.endsWith(snapshot.text) ? score.text.slice(0,score.text.length-snapshot.text.length) : '';
+      const sourceComment=score.format === '123' && snapshot.text.trim() !== '' && /^(?:%(?!%)[^\r\n]*\r?\n|[ \t]*\r?\n)+$/.test(prefix);
+      if ((snapshot.text !== score.text && !sourceComment) || snapshot.docFormat !== score.format) throw new Error(t("nota.ia.projectAndScoreTextDo"));
     } catch { throw new Error(t("nota.ia.theOriginalImageProjectCannot")); }
   }
   if(!canAdopt()) throw new Error(t("nota.ia.theDraftChangedWhileWaiting"));
@@ -188,6 +192,9 @@ export class CurrentDocumentSession {
     this.app.playback.stop();
     if (project) {
       if (!(await this.app.openProject(project, `${score.title}.dolce`))) throw new Error(t("nota.ia.theOriginalImageProjectCannot114"));
+      // Apply a legacy source prefix as an insertion after restoring the original mapping.
+      // replaceText migrates OMR selection ranges; replacing the entire document would discard them.
+      this.app.replaceText(score.text);
     } else {
       this.app.omr.clear(); this.app.adoptText(score.format, score.text, null); this.app.formats.use(null);
     }

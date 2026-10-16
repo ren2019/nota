@@ -70,6 +70,17 @@ try {
   assert.equal((await (await fetch(endpoint)).json()).length,2);
   const broken = await (await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...payload,title:'损坏恢复稿',project:'AAAA'})})).json();
   await assert.rejects(readLibraryScore(broken.id,endpoint), /原图项目暂时无法恢复/);
+  // Older seeded records added a source comment outside the original-image project.
+  const annotatedText='% 来源：人工校对的练习版\n'+text;
+  const annotated=await writeLibraryScore({...payload,title:'带来源注释的旧记录',text:annotatedText},null,endpoint);
+  const annotatedRecord=await readLibraryScore(annotated.id,endpoint);
+  assert.equal(annotatedRecord.score.text,annotatedText);
+  assert.equal(unpackProject(annotatedRecord.project).text,text,'restore the original project before applying the source comment so its selection ranges can migrate');
+  assert.deepEqual(unpackProject(annotatedRecord.project).sources,unpackProject(project).sources);
+  const mismatched=await writeLibraryScore({...payload,title:'音符不一致',text:text.replace('1 2 3 4','7 2 3 4')},null,endpoint);
+  await assert.rejects(readLibraryScore(mismatched.id,endpoint), /原图项目暂时无法恢复/,'actual musical changes must still be rejected');
+  const directive=await writeLibraryScore({...payload,title:'排版指令不一致',text:'%%pagewidth 200\n'+text},null,endpoint);
+  await assert.rejects(readLibraryScore(directive.id,endpoint), /原图项目暂时无法恢复/,'double-percent directives are not source comments');
   const committed=(await readLibraryScore(saved.id,endpoint)).score;
   const renamed=await renameLibraryScore(updated,'保留我的副本',endpoint);
   assert.equal(renamed.id,saved.id);assert.equal(renamed.revision,3);
