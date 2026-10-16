@@ -25,7 +25,7 @@ export function mountEditorPage(app:App, session:CurrentDocumentSession, detail:
   function refresh() {
     title.textContent=session.title;
     const statusText=session.current ? t(session.dirty ? 'nota.editor.unsaved' : 'nota.editor.saved') : t('nota.editor.draft');
-    status.textContent=statusText;
+    status.textContent=session.recovered ? `自动恢复稿 · ${statusText}` : statusText;
     print.textContent=t('nota.editor.printTitle',{title:app.documentTitle() || '—'});
     back.textContent=t('nota.editor.back');
     const originalView=app.mode === 'recognize';

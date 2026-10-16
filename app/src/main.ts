@@ -132,12 +132,15 @@ async function boot() {
   const session = new CurrentDocumentSession(app);
   let detail: DocumentDetail;
   const revealWorkspace = (mode: DetailMode = "edit") => detail.open(mode);
-  const library = mountLibrary(app, revealWorkspace, session);
+  const library = mountLibrary(app, revealWorkspace, session, () => { if(detail.screen !== "library") detail.showDetail("practice"); });
   detail = mountDocumentDetail(app, session, () => { void library.refresh(); });
   mountNotaExport(app);
   mountEditorPage(app, session, detail);
   // Extensions receive the same App/session/shell; no second document is created.
-  app.saveToLibrary = library.save;
+  app.saveToLibrary = async () => { await library.save(); };
+  app.libraryDirty = () => session.dirty;
+  app.beforeReplace = library.confirmReplace;
+  app.draftContext = () => session.draftContext();
   const showStartScreen = () => detail.home();
   const openStarter = async (text: string, name: string) => {
     if (!(await app.confirmReplace())) return;
@@ -376,9 +379,12 @@ async function boot() {
   // 上次没存的内容（自动保存的草稿）先读出来：自动加载上次的文件会把草稿当作已存删掉
   const draft = await app.takeDraft();
   // 自动加载上次打开的文件（仅 Tauri；失败则保持示例文本）
-  if (await app.tryRestoreLastFile()) revealWorkspace();
+  if (await app.tryRestoreLastFile()) { session.detach(); revealWorkspace(); }
   // 草稿：问要不要恢复
-  if (await app.offerDraftRestore(draft)) revealWorkspace();
+  if (await app.offerDraftRestore(draft)) {
+    await session.restoreDraft(draft?.nota);
+    revealWorkspace();
+  } else if(app.files.lastRestoreFailed) setStartFeedback(app.status);
 
   await detail.restoreInitialRoute();
 

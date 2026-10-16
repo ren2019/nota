@@ -74,6 +74,17 @@ export type PaperChoice = "follow" | { paper: string; orientation: "portrait" | 
 /** 谱面区的四档排版模式。见 `App.setViewModeButtons` 的注释：这是两组正交状态的组合。 */
 export type ViewMode = JianpuLayoutMode | "staff" | "mixed";
 
+/** Library/draft presentation snapshot. Reading zoom and playback preferences are deliberately excluded. */
+export interface DocumentLayoutState {
+  styleLayers: Record<"projection" | "print" | "staff" | "header", StyleRule[]>;
+  bookLayer: StyleRule[];
+  jianpuAccidentals: JianpuAccidentalMode;
+  practiceFontSize: 16 | 20 | 24 | null;
+  showLyrics: boolean;
+  mixedHideBarNumber: boolean;
+  mixedShowJianpuLayer: boolean;
+}
+
 /** 文本谱的扩展名。`.txt` 太泛，靠 sniffDialect 兜底，认不出就不动。 */
 
 export class App implements OmrHost, PlaybackHost, FormatHost, FormatSwitchHost, FileSwitchHost, VisualHost {
@@ -641,6 +652,28 @@ export class App implements OmrHost, PlaybackHost, FormatHost, FormatSwitchHost,
     if (this.mode === "mixed" && this.docFormat === "musicxml") void this._renderMixedPages();
   }
 
+  captureLayoutState(): DocumentLayoutState {
+    return JSON.parse(JSON.stringify({styleLayers:this._userLayers, bookLayer:this._bookLayer,
+      jianpuAccidentals:this.jianpuAccidentals, practiceFontSize:this.practiceFontSize, showLyrics:this.showLyrics,
+      mixedHideBarNumber:this.mixedHideBarNumber, mixedShowJianpuLayer:this.mixedShowJianpuLayer}));
+  }
+  restoreLayoutState(value: unknown): void {
+    if (!value || typeof value !== "object") return;
+    const state=value as Partial<DocumentLayoutState>;
+    if(state.styleLayers && typeof state.styleLayers === "object") this._userLayers={
+      projection:sanitizeLayer(state.styleLayers.projection), print:sanitizeLayer(state.styleLayers.print),
+      staff:sanitizeLayer(state.styleLayers.staff), header:sanitizeLayer(state.styleLayers.header),
+    };
+    if(Array.isArray(state.bookLayer)) this._bookLayer=sanitizeLayer(state.bookLayer);
+    if(state.jianpuAccidentals) this.jianpuAccidentals=jianpuAccidentalMode(state.jianpuAccidentals);
+    if(state.practiceFontSize !== undefined) this.practiceFontSize=practiceFontSize(state.practiceFontSize);
+    if(typeof state.showLyrics === "boolean") this.showLyrics=state.showLyrics;
+    if(typeof state.mixedHideBarNumber === "boolean") this.mixedHideBarNumber=state.mixedHideBarNumber;
+    if(typeof state.mixedShowJianpuLayer === "boolean") this.mixedShowJianpuLayer=state.mixedShowJianpuLayer;
+    this._applyPageBg(); this.saveSettings(); this.reload(this.getText());
+    if(this.mode === "mixed" && this.docFormat === "musicxml") void this._renderMixedPages();
+  }
+
   /** Restore persisted render settings; call before mountEditor() so first render uses them.
    *  存取机制在 editor/settings.ts；这里只管「哪个值落到哪个属性」。 */
   loadSettings(): void {
@@ -708,6 +741,7 @@ export class App implements OmrHost, PlaybackHost, FormatHost, FormatSwitchHost,
       noteSound: this.visual.noteSound,
       showPalette: this.visual.showPalette,
     });
+    if(this.view) this.files._scheduleDraft();
   }
 
   // ---------------- zoom ----------------
@@ -2646,9 +2680,13 @@ export class App implements OmrHost, PlaybackHost, FormatHost, FormatSwitchHost,
   saveFile(): Promise<void> { return this.saveToLibrary ? this.saveToLibrary() : this.files.saveFile(); }
   saveFileAs(): Promise<void> { return this.files.saveFileAs(); }
   saveAsFormat(target: ConvertTarget): Promise<void> { return this.files.saveAsFormat(target); }
-  isDirty(): boolean { return this.files.isDirty(); }
-  confirmReplace(closing = false): Promise<boolean> { return this.files.confirmReplace(closing); }
+  libraryDirty: (() => boolean) | null = null;
+  beforeReplace: ((closing: boolean) => Promise<boolean>) | null = null;
+  draftContext: (() => Draft["nota"]) | null = null;
+  isDirty(): boolean { return this.libraryDirty ? this.libraryDirty() : this.files.isDirty(); }
+  confirmReplace(closing = false): Promise<boolean> { return this.beforeReplace ? this.beforeReplace(closing) : this.files.confirmReplace(closing); }
   markClean(): void { this.files.markClean(); }
+  suspendDraftWrites():()=>void { return this.files.suspendDraftWrites(); }
   takeDraft(): Promise<Draft | null> { return this.files.takeDraft(); }
   offerDraftRestore(d: Draft | null): Promise<boolean> { return this.files.offerDraftRestore(d); }
   saveProject(asNew: boolean): Promise<boolean> { return this.files.saveProject(asNew); }

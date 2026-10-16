@@ -46,6 +46,8 @@ function baseTitle(name: string): string {
 
 /** OmrController 向编辑器要的全部能力。 */
 export interface OmrHost {
+  suspendDraftWrites():()=>void;
+  confirmReplace(closing?:boolean): Promise<boolean>;
   /** 当前预览模式。识别模式期间为 "recognize"。 */
   readonly mode: "jp" | "mixed" | "recognize";
   /** 编辑器里的 CodeMirror 视图（点选定位要用）。 */
@@ -186,11 +188,13 @@ export class OmrController implements FormatSource {
     for (const sel of [start, toolbar]) {
       if (!sel) continue;
       this.kindSelects.push(sel);
-      sel.addEventListener("change", () => {
-        this.kind = sel.value as typeof this.kind;
+      sel.addEventListener("change", async () => {
+        const next=sel.value as typeof this.kind;
+        if(sel === toolbar && this.lastInputs.length && !(await this.host.confirmReplace())) { this.syncKindSelects(); return; }
+        this.kind = next;
         this.host.saveSettings();
         this.syncKindSelects();
-        if (sel === toolbar && this.lastInputs.length) void this.rerecognize();
+        if (sel === toolbar && this.lastInputs.length) void this.recognizeFiles(this.lastInputs);
       });
     }
     this.syncKindSelects();
@@ -201,18 +205,6 @@ export class OmrController implements FormatSource {
 
   private syncKindSelects(): void {
     for (const sel of this.kindSelects) sel.value = this.kind;
-  }
-
-  /** 用上次的输入按新的识别类型重识别（手改过先问）。 */
-  private async rerecognize(): Promise<void> {
-    if (this.editedSinceRecognition() && !(await confirmDiscardEdits())) return;
-    await this.recognizeFiles(this.lastInputs);
-  }
-
-  /** 识别完之后谱面上改过没有（简谱、五线谱两路各记各的「刚识别出来」那份）。 */
-  private editedSinceRecognition(): boolean {
-    const t = this.host.getText();
-    return (this.emitted !== null && t !== this.emitted) || (this.staffEmitted !== null && t !== this.staffEmitted);
   }
 
   // ---------------- 原图页面板（`omrpages.ts`） ----------------
@@ -253,7 +245,7 @@ export class OmrController implements FormatSource {
 
   /** 按改过的原图列表重识别（手改过先问）。 */
   async rerunWith(files: RecogInput[]): Promise<boolean> {
-    if (this.editedSinceRecognition() && !(await confirmDiscardEdits())) return false;
+    if (!(await this.host.confirmReplace())) return false;
     const ok = await this.recognizeFiles(files);
     this.syncPagesBtn();
     return ok;
@@ -271,6 +263,8 @@ export class OmrController implements FormatSource {
    * 简谱一次识别一张（几张时只认第一张，状态栏说明）。
    */
   async recognizeFiles(files: readonly RecogInput[]): Promise<boolean> {
+    const releaseDraft=this.host.suspendDraftWrites();
+    try {
     const g = ++this.gen;
     const prev = this.lastInputs;
     const ok = await this.recognizeFilesInner(files, g);
@@ -279,6 +273,7 @@ export class OmrController implements FormatSource {
     if (!ok && g === this.gen && this.sessionKind !== null) this.lastInputs = prev;
     if (g === this.gen || ok) this.syncPagesBtn();
     return ok;
+    } finally {releaseDraft();}
   }
 
   private async recognizeFilesInner(files: readonly RecogInput[], g: number): Promise<boolean> {

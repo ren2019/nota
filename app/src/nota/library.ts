@@ -1,20 +1,13 @@
 import { provenanceFooterSource } from "./score-footer-source";
 import type { App } from "../editor/app";
-import { packProject } from "../editor/omrproject";
-import { showConfirmDialog, showFormDialog } from "../editor/dialogs";
+import { showConfirmDialog, showFormDialog, showUnsavedLibraryDialog } from "../editor/dialogs";
 import { keyLabel } from "./convert";
 import "./library.css";
-import { CurrentDocumentSession, libraryRequest as request, LibraryError, type LibraryItem } from "./document-session";
+import { CurrentDocumentSession, libraryRequest as request, LibraryError, writeLibraryScore, bytesBase64, type LibraryItem, type LibrarySaveResult } from "./document-session";
 import { mountSourceImport, type SourceCandidate } from "./source-import";
 
-function base64(bytes: Uint8Array): string {
-  const chunks = [];
-  for (let i = 0; i < bytes.length; i += 32768) chunks.push(String.fromCharCode(...bytes.subarray(i, i + 32768)));
-  return btoa(chunks.join(""));
-}
-
 /** One shared library on the Nota host; opening a score never re-runs recognition. */
-export function mountLibrary(app: App, revealWorkspace: (mode?: "practice" | "edit") => void, session: CurrentDocumentSession) {
+export function mountLibrary(app: App, revealWorkspace: (mode?: "practice" | "edit") => void, session: CurrentDocumentSession, onSaved: () => void) {
   const root = document.createElement("section");
   root.id = "nota-library";
   root.setAttribute("aria-labelledby", "library-title");
@@ -36,7 +29,9 @@ export function mountLibrary(app: App, revealWorkspace: (mode?: "practice" | "ed
   const count = root.querySelector<HTMLSpanElement>("#library-count")!;
   const saveButton = document.getElementById("btn-save") as HTMLButtonElement;
   let items: LibraryItem[] = [];
-  let busy = false;
+  let opening = false;
+  let inFlight:Promise<LibrarySaveResult> | null = null;
+  let guard:Promise<boolean> | null = null;
   let fetching = false;
 
   function render() {
@@ -85,8 +80,8 @@ export function mountLibrary(app: App, revealWorkspace: (mode?: "practice" | "ed
   }
 
   async function open(item: LibraryItem, button: HTMLButtonElement) {
-    if (busy) return;
-    busy = true;
+    if (opening) return;
+    opening = true;
     button.disabled = true;
     try {
       if (session.current?.id !== item.id) {
@@ -98,10 +93,11 @@ export function mountLibrary(app: App, revealWorkspace: (mode?: "practice" | "ed
       message.hidden = false;
       message.textContent = e instanceof Error ? e.message : String(e);
       message.classList.add("is-error");
-    } finally { busy = false; button.disabled = false; }
+    } finally { opening = false; button.disabled = false; }
   }
 
   function nameScore(): Promise<{ title: string; copy: boolean } | null> {
+    if(session.current) return Promise.resolve({title:session.current.title,copy:false});
     return new Promise((resolve) => {
       const body = document.createElement("div");
       body.className = "library-save-form";
@@ -113,6 +109,9 @@ export function mountLibrary(app: App, revealWorkspace: (mode?: "practice" | "ed
       input.setAttribute("aria-label", "曲名");
       label.append(input);
       body.append(label);
+      const location=document.createElement("p");
+      location.textContent="保存到当前 Nota 服务的曲谱库，连接同一服务的家人可访问。";
+      body.append(location);
       const copy = document.createElement("input");
       copy.type = "checkbox";
       if (session.current) {
@@ -126,56 +125,69 @@ export function mountLibrary(app: App, revealWorkspace: (mode?: "practice" | "ed
     });
   }
 
-  async function save(): Promise<void> {
-    if (busy) return;
-    if (!app.getText().trim() || !app.scoreDoc()?.songs.length) { app.setStatus("请先打开或创作一份曲谱。"); return; }
-    busy = true;
-    const caption = saveButton.textContent;
-    saveButton.disabled = true;
+  async function performSave(navigate:boolean):Promise<LibrarySaveResult> {
+    if (!app.getText().trim() || !app.scoreDoc()?.songs.length) { app.setStatus("请先打开或创作一份曲谱。"); return {status:'failed'}; }
+    const buttons=[saveButton,document.getElementById('nota-detail-save') as HTMLButtonElement | null].filter((button):button is HTMLButtonElement => !!button);
+    buttons.forEach(button => {button.disabled=true;button.textContent='正在保存…';});
     try {
-      const named = await nameScore();
-      if (!named) return;
-      const text = app.getText();
-      const format = app.docFormat;
-      const song = app.scoreDoc()?.songs[0];
-      const snapshot = app.omr.snapshot();
-      const page = app.paperState("jianpu").page;
-      const payload = {
-        title: named.title, text, format,
-        ...(session.source ? {source: session.source} : {}),
-        key: song?.key ? `1=${keyLabel(song.key.fifths)}` : "",
-        meter: song?.time ? `${song.time.beats}/${song.time.beatType}` : "",
-        ...(snapshot ? { project: base64(packProject(snapshot, __APP_VERSION__)) } : {}),
-        presentation: { mode: app.viewMode, noteSize: app.fontSize, paper: page.paper ?? "A4", orientation: page.orientation ?? "portrait", margin: Array.isArray(page.margin) ? page.margin : null },
-        ...(session.current && !named.copy ? { revision: session.current.revision } : {}),
+      const named=await nameScore();
+      if(!named) return {status:'cancelled'};
+      await app.whenIdle();
+      const snapshot=session.capture();
+      const song=app.scoreDoc()?.songs[0];
+      const payload={title:named.title,text:snapshot.text,format:snapshot.format,
+        ...(snapshot.source ? {source:snapshot.source} : {}),
+        key:song?.key ? `1=${keyLabel(song.key.fifths)}` : '',
+        meter:song?.time ? `${song.time.beats}/${song.time.beatType}` : '',
+        ...(snapshot.project ? {project:bytesBase64(snapshot.project)} : {}),presentation:snapshot.presentation,
       };
-      saveButton.textContent = "正在保存…";
-      let existing = session.current && !named.copy ? session.current : null;
-      let saved: LibraryItem;
-      const write = () => request<LibraryItem>(existing ? `/${existing.id}` : "", {
-        method: existing ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
-      });
-      try { saved = await write(); }
-      catch (e) {
-        if (!(e instanceof LibraryError) || e.status !== 409) throw e;
-        if (!(await showConfirmDialog("曲谱已被家人更新", "保留家人的更新，把你现在的版本另存为一份新曲谱吗？"))) return;
-        existing = null;
-        saved = await write();
+      let existing=session.current && !named.copy ? session.current : null;
+      let saved:LibraryItem;
+      try {saved=await writeLibraryScore(payload,existing);}
+      catch(error) {
+        if(!(error instanceof LibraryError) || error.status !== 409) throw error;
+        if(!(await showConfirmDialog('曲谱已被家人更新','保留家人的更新，把刚提交的版本另存为一份新曲谱吗？当前新修改也会保留。'))) return {status:'cancelled'};
+        existing=null; saved=await writeLibraryScore({...payload,title:`${payload.title.slice(0,116)}（副本）`},null);
       }
-      session.acceptSaved(saved);
-      if (app.getText() === text && app.docFormat === format) app.markClean();
-      app.setStatus(`已保存「${saved.title}」到曲谱库。回到首页即可找到。`);
+      const unchanged=session.acceptSaved(saved,snapshot);
+      if(unchanged) app.markClean(); else app.files._scheduleDraft();
+      app.setStatus(unchanged ? `已保存「${saved.title}」到当前 Nota 服务的曲谱库。` : `已保存刚提交的版本；当前的新修改尚未入库，请再次保存。`);
       await refresh();
-    } catch (e) { app.setStatus(e instanceof Error ? e.message : String(e)); }
-    finally { busy = false; saveButton.disabled = false; saveButton.textContent = caption; }
+      // Refresh is asynchronous too: a new edit made while it ran must keep the user in editing.
+      const stillCurrent=session.matches(snapshot);
+      if(unchanged && stillCurrent) {
+        if(navigate) onSaved();
+        return {status:'saved',item:saved};
+      }
+      return {status:'changed',item:saved};
+    } catch(error) {app.setStatus(error instanceof Error ? error.message : String(error)); return {status:'failed'};}
+    finally {buttons.forEach(button => {button.disabled=false;button.textContent='保存入库';});}
+  }
+  function save(navigate=true):Promise<LibrarySaveResult> {
+    if(inFlight) return inFlight;
+    inFlight=performSave(navigate).finally(() => {inFlight=null;});
+    return inFlight;
+  }
+  function confirmReplace(closing=false):Promise<boolean> {
+    if(guard) return Promise.resolve(false);
+    if(!session.dirty) return Promise.resolve(true);
+    guard=(async () => {
+      const outcome=await showUnsavedLibraryDialog(session.title,closing);
+      if(outcome === 'cancel') return false;
+      if(outcome === 'discard') return true;
+      const result=await save(false);
+      return result.status === 'saved' && !session.dirty;
+    })().finally(() => {guard=null;});
+    return guard;
   }
 
   async function adoptCandidate(candidate: SourceCandidate) {
     if (!(await app.confirmReplace())) return;
+    session.detach(candidate.source, candidate.title);
     app.playback.stop(); app.omr.clear();
     app.adoptText(candidate.format, candidate.text, null); app.formats.use(null);
     await app.setViewMode(candidate.format === 'musicxml' ? 'staff' : 'expanded');
-    await app.whenIdle(); session.detach(candidate.source, candidate.title);
+    await app.whenIdle();
     app.exportSourceDescription = provenanceFooterSource(session.source);
     app.setStatus(`已打开「${candidate.title}」候选。来源数据对照通过；请核对版本与谱面，确认后保存到曲谱库。`);
     revealWorkspace("edit");
@@ -184,5 +196,5 @@ export function mountLibrary(app: App, revealWorkspace: (mode?: "practice" | "ed
   search.addEventListener("input", render);
   root.querySelector("#library-refresh")!.addEventListener("click", () => void refresh());
   void refresh();
-  return { save, refresh, detach: () => session.detach() };
+  return { save, refresh, confirmReplace, detach: () => session.detach() };
 }

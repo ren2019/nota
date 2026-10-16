@@ -1,6 +1,6 @@
-import type { App, ViewMode } from '../editor/app';
+import type { App, ViewMode, DocumentLayoutState } from '../editor/app';
 import type { DocFormatId } from '../editor/formats';
-import { unpackProject } from '../editor/omrproject';
+import { packProject, unpackProject } from '../editor/omrproject';
 import type { SourceProvenance } from './source-import';
 import { provenanceFooterSource } from './score-footer-source';
 
@@ -11,6 +11,7 @@ export interface LibraryItem {
 export interface LibraryPresentation {
   mode: ViewMode; noteSize: number; paper: string;
   orientation: 'portrait' | 'landscape'; margin: number[] | null;
+  render?: DocumentLayoutState;
 }
 export interface LibraryScore extends LibraryItem {
   text: string; project?: string; presentation?: LibraryPresentation;
@@ -25,6 +26,39 @@ export async function libraryRequest<T>(path = '', options?: RequestInit, endpoi
   const body = await response.json().catch(() => null);
   if (!response.ok || body === null) throw new LibraryError(body?.error ?? '曲谱库暂时不可用，请稍后重试。', response.status);
   return body as T;
+}
+export type LibrarySubmission = Omit<LibraryScore, 'id' | 'revision' | 'updatedAt'>;
+export function writeLibraryScore(payload: LibrarySubmission, existing: LibraryItem | null, endpoint?:string):Promise<LibraryItem> {
+  return libraryRequest<LibraryItem>(existing ? `/${encodeURIComponent(existing.id)}` : '', {
+    method:existing ? 'PUT' : 'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({...payload,...(existing ? {revision:existing.revision} : {})}),
+  },endpoint);
+}
+export interface LibraryDraftContext {
+  version:1; current:LibraryItem | null; title:string; source?:SourceProvenance;
+  presentation:LibraryPresentation; baseline:string | null;
+}
+export interface DocumentSnapshot {
+  generation:number; fingerprint:string; text:string; format:DocFormatId;
+  project?:Uint8Array; presentation:LibraryPresentation; source?:SourceProvenance;
+}
+export type LibrarySaveResult = {status:'saved';item:LibraryItem} | {status:'changed';item:LibraryItem} | {status:'cancelled' | 'failed'};
+const bytesCache=new WeakMap<Uint8Array,string>();
+export function bytesBase64(bytes:Uint8Array):string {
+  let encoded=bytesCache.get(bytes);
+  if(encoded !== undefined) return encoded;
+  const chunks:string[]=[];
+  for(let i=0;i<bytes.length;i+=32768) chunks.push(String.fromCharCode(...bytes.subarray(i,i+32768)));
+  encoded=btoa(chunks.join('')); bytesCache.set(bytes,encoded); return encoded;
+}
+function sourceIdentity(source?:SourceProvenance):unknown {
+  if(!source) return null;
+  return Object.fromEntries(['url','license','sha256','importedAt','validation','method','scope','part','importedTextHash'].map(key => [key,String(source[key as keyof SourceProvenance] ?? '').slice(0,2048)]));
+}
+// Original input and binary buffers are immutable in the OMR controller: rotation/crop/recognition replace them.
+// Compare logical snapshots, never ZIP bytes (ZIP headers include wall-clock timestamps).
+function fingerprint(value:unknown):string {
+  return JSON.stringify(value,(_key,entry:unknown) => entry instanceof Uint8Array ? bytesBase64(entry) : entry instanceof Map ? {__map:[...entry]} : entry);
 }
 /** Read and validate before touching App: an invalid record must never reveal an old score as success. */
 export async function readLibraryScore(id: string, endpoint?: string): Promise<{ score: LibraryScore; project?: Uint8Array }> {
@@ -47,41 +81,87 @@ export class CurrentDocumentSession {
   source: SourceProvenance | undefined;
   importedTitle: string | undefined;
   private baseline: string | null = null;
+  private generation=0;
+  private active=false;
+  recovered=false;
   private listeners = new Set<() => void>();
   constructor(readonly app: App) {}
   subscribe(listener: () => void): () => void { this.listeners.add(listener); return () => this.listeners.delete(listener); }
   notify(): void { this.listeners.forEach(listener => listener()); }
-  get title(): string { return this.current?.title ?? this.importedTitle ?? this.app.documentTitle() ?? '未命名曲谱'; }
+  get title(): string { return this.current?.title || this.importedTitle || this.app.documentTitle() || '未命名曲谱'; }
   presentation(): LibraryPresentation {
     const page = this.app.paperState('jianpu').page;
-    return {mode:this.app.viewMode, noteSize:this.app.fontSize, paper:page.paper ?? 'A4', orientation:page.orientation ?? 'portrait', margin:Array.isArray(page.margin) ? page.margin : null};
+    return {mode:this.app.viewMode, noteSize:this.app.fontSize, paper:page.paper ?? 'A4', orientation:page.orientation ?? 'portrait', margin:Array.isArray(page.margin) ? page.margin : null,render:this.app.captureLayoutState()};
   }
-  private fingerprint(): string { return JSON.stringify([this.app.docFormat, this.app.getText(), this.presentation()]); }
-  get dirty(): boolean { return this.baseline === null || this.fingerprint() !== this.baseline; }
-  /** Kept separate from FileSession.markClean: downloading a file does not save into the shared library. */
-  acceptSaved(item: LibraryItem): void { this.current = item; this.baseline = this.fingerprint(); this.notify(); }
-  detach(source?: SourceProvenance, title?: string): void {
-    this.current = null; this.source = source; this.importedTitle = title; this.baseline = null;
-    this.app.exportSourceDescription = provenanceFooterSource(source); this.notify();
+  private fingerprint(): string {
+    return fingerprint([this.app.docFormat,this.app.getText(),this.app.omr.snapshot(),this.presentation(),sourceIdentity(this.source)]);
+  }
+  get dirty(): boolean { return this.active && (this.baseline === null || this.fingerprint() !== this.baseline); }
+  capture():DocumentSnapshot {
+    const snapshot=this.app.omr.snapshot();
+    return {generation:this.generation,fingerprint:this.fingerprint(),text:this.app.getText(),format:this.app.docFormat,
+      ...(snapshot ? {project:packProject(snapshot,__APP_VERSION__)} : {}), presentation:this.presentation(),
+      ...(this.source ? {source:structuredClone(this.source)} : {}),
+    };
+  }
+  matches(snapshot:DocumentSnapshot):boolean { return snapshot.generation === this.generation && snapshot.fingerprint === this.fingerprint(); }
+  /** A response may advance the server revision while newer local edits remain dirty. */
+  acceptSaved(item:LibraryItem, snapshot?:DocumentSnapshot):boolean {
+    if(snapshot && snapshot.generation !== this.generation) return false;
+    this.current=item; this.source=item.source; this.importedTitle=undefined; this.active=true;
+    this.baseline=snapshot?.fingerprint ?? this.fingerprint();
+    const unchanged=!snapshot || snapshot.fingerprint === this.fingerprint();
+    this.recovered=false; this.notify(); return unchanged;
+  }
+  /** Metadata-only operations such as rename must not clear the content save baseline. */
+  updateIdentity(item:LibraryItem):void { this.current=item; this.notify(); this.app.files._scheduleDraft(); }
+  detach(source?:SourceProvenance,title?:string):void {
+    this.generation++; this.active=true; this.recovered=false;
+    this.current=null; this.source=source; this.importedTitle=title; this.baseline=null;
+    this.app.exportSourceDescription=provenanceFooterSource(source); this.notify(); this.app.files._scheduleDraft();
+  }
+  draftContext():LibraryDraftContext | undefined {
+    return this.active ? {version:1,current:this.current,title:this.title,source:this.source,presentation:this.presentation(),baseline:this.baseline} : undefined;
+  }
+  async restoreDraft(context:LibraryDraftContext | undefined):Promise<void> {
+    this.generation++; this.active=true; this.recovered=true;
+    this.current=context?.version === 1 ? context.current : null;
+    this.source=context?.source; this.importedTitle=context?.title;
+    this.baseline=context?.baseline ?? null;
+    const p=context?.presentation;
+    if(p) {
+      await this.app.setViewMode(p.mode);
+      if(p.render) this.app.restoreLayoutState(p.render);
+      else this.app.applyRenderSettings({fontSize:p.noteSize,paper:{jianpu:{paper:p.paper,orientation:p.orientation,margin:p.margin}}});
+      await this.app.whenIdle();
+    }
+    this.app.exportSourceDescription=provenanceFooterSource(this.source);
+    this.notify(); this.app.files._scheduleDraft();
   }
   async openLibrary(id: string): Promise<void> {
     const {score, project} = await readLibraryScore(id);
+    const releaseDraft=this.app.suspendDraftWrites();
+    try {
     this.app.playback.stop();
     if (project) {
       if (!(await this.app.openProject(project, `${score.title}.dolce`))) throw new Error('这份曲谱的原图项目暂时无法打开。');
     } else {
       this.app.omr.clear(); this.app.adoptText(score.format, score.text, null); this.app.formats.use(null);
     }
+    await this.app.loadBookSheet();
     const p = score.presentation;
     if (p && ['original','expanded','staff','mixed'].includes(p.mode)) {
       await this.app.setViewMode(p.mode);
-      if (Number.isFinite(p.noteSize) && p.noteSize >= 8 && p.noteSize <= 72) this.app.applyRenderSettings({fontSize:p.noteSize, paper:{jianpu:{paper:p.paper,orientation:p.orientation === 'landscape' ? 'landscape' : 'portrait',margin:p.margin}}});
+      if (p.render) this.app.restoreLayoutState(p.render);
+      else if (Number.isFinite(p.noteSize) && p.noteSize >= 8 && p.noteSize <= 72) this.app.applyRenderSettings({fontSize:p.noteSize, paper:{jianpu:{paper:p.paper,orientation:p.orientation === 'landscape' ? 'landscape' : 'portrait',margin:p.margin}}});
     }
     await this.app.whenIdle();
     if (!this.app.scoreDoc()?.songs.length) throw new Error('这份曲谱暂时无法排版，请返回曲谱库检查原文件。');
+    this.generation++; this.active=true; this.recovered=false;
     this.source = score.source; this.importedTitle = undefined;
     this.app.exportSourceDescription = provenanceFooterSource(score.source);
-    this.app.markClean(); this.acceptSaved(score);
+    this.acceptSaved(score); this.app.markClean();
     this.app.setStatus(`已从曲谱库打开「${score.title}」。`);
+    } finally {releaseDraft();}
   }
 }
