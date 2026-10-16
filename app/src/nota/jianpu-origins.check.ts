@@ -1,4 +1,4 @@
-import { DOMParser } from "@xmldom/xmldom";
+import { DOMParser, XMLSerializer } from "@xmldom/xmldom";
 import { loadScoreDoc } from "../model/fromxml";
 import { docView } from "../pu/slots";
 import { projectJianpuOutput } from "./jianpu-output";
@@ -7,6 +7,7 @@ Object.defineProperty(globalThis, "DOMParser", {
   configurable: true,
   value: DOMParser,
 });
+Object.defineProperty(globalThis, "XMLSerializer", { configurable: true, value: XMLSerializer });
 function equal(actual: unknown, expected: unknown, message: string): void {
   if (JSON.stringify(actual) !== JSON.stringify(expected))
     throw new Error(
@@ -435,3 +436,39 @@ for (const [name, doc] of fixtures) {
 console.log(
   "Jianpu origins: every supported origin retains mixed-view editing source mappings.",
 );
+
+// A mixed output preference must retain the native staff surface, not rerun
+// automatic layout after losing WeakMap-bound coordinates and fonts.
+const surfaceXml = xml.replace('<measure number="1">', '<measure number="1" width="417">').replace(/<octave>4<\/octave>/g, '<octave>5</octave>').replace('<type>quarter</type>', '<type>quarter</type><stem>up</stem><lyric><text font-family="Serif" font-size="19">啊</text></lyric>');
+const surfaceDoc = loadScoreDoc(surfaceXml);
+const surfaceRaw = JSON.stringify(surfaceDoc);
+const surfaceNative = scoreDocToMusicXml(surfaceDoc);
+for (const mode of ["explicit", "measure"] as const) {
+  await painter.load({ view: "mixed", doc: surfaceDoc, page: null, hideBarNumber: true, accidentalMode: mode });
+  const score = painter.result!.staffPlacements[0]!.score;
+  equal(score.autoLayout, false, `${mode}: mixed preserves embedded native layout`);
+  equal(score.measures[0]!.width, 417, `${mode}: native measure width is retained`);
+  const measure = score.parts[0]!.measures[0]!;
+  equal(measure.chords.find(c => !c.grace)!.stemUp, true, `${mode}: explicit native stem direction is retained`);
+  equal(measure.lyrics[0]!.font.family, "Serif", `${mode}: native lyric font survives projection`);
+  equal(Math.round(measure.lyrics[0]!.font.size * score.scaling), 19, `${mode}: native lyric font size survives projection`);
+}
+equal(JSON.stringify(surfaceDoc), surfaceRaw, "Mixed projection preserves native editable source");
+equal(scoreDocToMusicXml(surfaceDoc), surfaceNative, "Mixed layout never modifies native XML surface nodes");
+
+const chordNote = (alter: number, octave: number, extra = "") => `<note>${extra}<pitch><step>E</step><alter>${alter}</alter><octave>${octave}</octave></pitch><duration>1</duration><type>quarter</type></note>`;
+const chordXml = `<score-partwise version="4.0"><part-list><score-part id="P1"><part-name>Voice</part-name></score-part></part-list><part id="P1"><measure number="1"><attributes><divisions>1</divisions><key><fifths>0</fifths></key><time><beats>3</beats><beat-type>4</beat-type></time></attributes>${chordNote(-1, 5)}${chordNote(0, 5)}${chordNote(-1, 4, "<chord/>")}${chordNote(-1, 5)}</measure></part></score-partwise>`;
+const chordSource = loadScoreDoc(chordXml);
+const chordMusic = music(chordSource);
+await painter.load({ view: "staff", doc: chordSource, page: null, hideBarNumber: true });
+const chordStaffFlats = flatCount();
+for (const mode of ["explicit", "measure"] as const) {
+  const output = projectJianpuOutput(chordSource, mode);
+  equal(visible(output), ["flat", "natural", "flat"], `${mode}: hidden chord tone never changes the visible melody carry`);
+  equal(music(output), chordMusic, `${mode}: every chord tone and principal pitch stays intact`);
+  for (const view of ["original", "expanded", "mixed"] as const) {
+    if (view === "mixed") await painter.load({ view, doc: chordSource, page: null, hideBarNumber: true, accidentalMode: mode });
+    else painter.loadSync({ view, doc: chordSource, style: null, accidentalMode: mode });
+    equal(flatCount(), view === "mixed" ? chordStaffFlats + 2 : 2, `${mode}/${view}: required final melody flat is printed`);
+  }
+}

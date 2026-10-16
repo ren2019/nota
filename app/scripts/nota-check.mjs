@@ -1,5 +1,5 @@
 import { build } from "esbuild";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import path from "node:path";
 
@@ -32,4 +32,35 @@ const settingsOutput = path.join(root, "out/nota-output-settings-check.mjs");
 await build({ entryPoints: [path.join(root, "src/nota/output-settings.check.ts")], outfile: settingsOutput, bundle: true, platform: "node", format: "esm" });
 await import(pathToFileURL(settingsOutput).href);
 
-await import("./check-jianpu-origins.mjs");
+const originsOutput = `${root}/out/nota-jianpu-origins.mjs`;
+await build({
+  entryPoints: [`${root}/src/nota/jianpu-origins.check.ts`],
+  outfile: originsOutput,
+  bundle: true,
+  platform: "node",
+  format: "esm",
+  external: ["@xmldom/xmldom"],
+  define: { "import.meta.env.BASE_URL": '"/"' },
+});
+const originalFetch = globalThis.fetch;
+const globals = ["DOMParser", "XMLSerializer", "document", "localStorage"].map((key) => [
+  key,
+  Object.getOwnPropertyDescriptor(globalThis, key),
+]);
+globalThis.fetch = async (input, ...args) => {
+  if (
+    input === "/redist/Bravura.otf" ||
+    input === "/redist/bravura_metadata.json"
+  )
+    return new Response(await readFile(`${root}/public${input}`));
+  return originalFetch(input, ...args);
+};
+try {
+  await import(pathToFileURL(originsOutput).href);
+} finally {
+  globalThis.fetch = originalFetch;
+  for (const [key, descriptor] of globals) {
+    if (descriptor) Object.defineProperty(globalThis, key, descriptor);
+    else delete globalThis[key];
+  }
+}
