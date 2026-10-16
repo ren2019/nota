@@ -34,6 +34,18 @@ NOTA_ALLOWED_HOSTS=nota.example.com npm run preview
 
 能访问实例的人共用其读写入口；如需限制访问范围，由部署者在网络或反代入口控制。上线前需在自己的环境验收 HTTPS 页面、API、保存与冲突保护、联网找谱、原图上传及导出；项目的测试结论不代表任意部署均已通过验证。
 
+## 可选的统一登录网关
+
+可在 HTTPS 入口接入 Authelia 等独立网关，由反代在访问页面和 API 前校验会话。Nota 本身仍不增加账号、成员或曲谱权限；通过网关的人访问同一个实例共享库。
+
+- 网关负责登录页、会话 Cookie、退出和“记住登录”的有效期。浏览器关闭后是否保持登录由网关策略与客户端存储共同决定，不能仅靠 Nota 设置保证。
+- iPhone 主屏幕 App 宜保留同源登录路径，例如 `https://nota.example.com/auth/`，并让登录成功后返回原页面；登录页不能再次要求已登录而形成重定向循环。
+- 页面未登录时跳转登录页；`/api/` 未登录时返回明确的 401，避免把登录 HTML 当成曲谱库数据。登录门户及安装所需 Manifest/图标的可达性需单独验证。
+- 应用不信任客户端自报的身份头。网关凭据及会话不需要传给 Nota；代理是否剥离 Cookie 或 Authorization 应按被保护应用的契约配置。
+- 账号、域名、密钥、Cookie 和网关备份属于部署者的私有运维资料，保存在 `local/` 或独立私有运维项目，不进入仓库。
+
+部署后分别验收正常浏览、未登录 API、登录后曲库读写、退出、关闭再打开和会话过期。认证发生在 TLS 连接之后；改用登录网关不能解决 VPN 路由或 TLS 握手故障。
+
 ## macOS 常驻服务
 
 仓库提供可选的用户 LaunchAgent 安装脚本：
@@ -63,9 +75,14 @@ launchctl kickstart -k "gui/$(id -u)/ink.nota.web"
 
 Mac 部署脚本将日志写入 `local/runtime/nota.log` 与 `local/runtime/nota-error.log`。这些目录被 Git 忽略。开发验证可以设置 `NOTA_LIBRARY_DIRECTORY=/path/to/test-library`，使用隔离库，避免改动正式曲谱。
 
-## Safari Web App
+## Safari Web App 与 iPhone 主屏幕 App
 
-Safari 打开自己实例的地址，选择“共享 → 添加到程序坞”保存为 Web App。它访问同一实例的曲谱库，需要服务主机在线；不提供离线曲谱库。Manifest 与应用图标已接入，具体设备行为需在部署环境验证。
+使用自己的 HTTPS 实例地址：
+
+- iPhone：Safari 打开页面，选择“共享 → 添加到主屏幕”，从 Nota 图标启动并打开一首曲谱。
+- macOS：Safari 选择“添加到程序坞”，从独立 Web App 启动。
+
+两者访问同一实例的曲谱库，需要服务主机在线；不提供离线曲谱库。Manifest 使用 standalone，应用图标已接入。iPhone 主屏幕独立启动与打开曲谱已有用户确认，见[当前验收](acceptance/current-release.md)；自己的部署仍需检查登录跳转、重新打开、安全区、文件接收与音频等行为，不能只凭图标出现判定所有功能通过。
 
 ## 结构化来源导入
 

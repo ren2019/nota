@@ -1,5 +1,7 @@
 # Nota MVP 用户故事
 
+> 本文保留早期 MVP 用户故事。当前 IA 规格以 [GitHub #9](https://github.com/ren2019/nota/issues/9) 为准，最新交付结果见[当前发布与验收](acceptance/current-release.md)。
+
 采用自行部署的单实例曲谱工作流；不新增登录、成员角色、多空间或跨实例同步。当前完整 IA 与旅程规格以 [GitHub #9](https://github.com/ren2019/nota/issues/9) 为准，受控的联网找谱以已接入范围为准。
 
 | 用户故事 | 最小验收标准 |

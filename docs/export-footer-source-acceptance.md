@@ -1,5 +1,7 @@
 # 乐谱页脚与来源排版验收
 
+> 本文保留来源与页脚初版的验收证据。最新页脚将来源单独放在上层、日期/页码放在品牌层右侧，见[当前发布与验收](acceptance/current-release.md)。
+
 对应 [GitHub issue #7](https://github.com/ren2019/nota/issues/7)。用户调用 implement-spec 后实施，范围仅为乐谱页脚与来源排版；#6 的应用界面走查另行跟踪。
 
 代码基于全局简谱输出设置的 `4847ab1`，原集成分支为 `integration/export-footer-source`。实现提交 `ce242b3`，审查修复 `521fd03`，集成至 `25bc19d`。经用户批准，现已合入 main，正式部署未更新；最终品牌位置以后续 #8 为准。

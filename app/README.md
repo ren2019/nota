@@ -1,5 +1,7 @@
 # 悦谱 Dolce
 
+> 本文保留 Dolce 上游说明，其中在线演示与桌面下载指向上游项目。Nota 的安装、当前界面、部署和能力边界请阅读[仓库根 README](../README.md)；固定上游版本与改动入口见 [UPSTREAM.md](UPSTREAM.md)。
+
 **中文** | [English](README.en.md)
 
 > 开源的简谱与五线谱编辑、识谱与排版工具：写谱、识谱、排版、试听、导出，浏览器即开即用，也有 Windows / macOS 桌面版；界面中英双语。

@@ -1,5 +1,7 @@
 # NOTA-004：全局简谱输出设置与升降号显示模式
 
+> 历史规格快照：对应 [GitHub #1](https://github.com/ren2019/nota/issues/1) 已完成并关闭。当前能力见[根 README](../../README.md)，后续状态不在本快照维护。
+
 状态：规格已发布，待实施。用户已确认本规格的测试入口与验收范围。后续以 [GitHub issue #1](https://github.com/ren2019/nota/issues/1) 为准；本文件保留发布时的规格快照。
 
 分诊标签：`ready-for-agent`（已应用于 GitHub issue）。

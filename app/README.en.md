@@ -1,5 +1,7 @@
 # Dolce
 
+> This is the retained upstream Dolce documentation. Demo and desktop release links point to Dolce. For Nota's current interface, setup, deployment, and supported scope, see the [repository README](../README.md) and [upstream provenance](UPSTREAM.md).
+
 [中文](README.md) | **English**
 
 > **Dolce** (悦谱) is an open-source editor and typesetter for **jianpu** (Chinese numbered musical notation) and
