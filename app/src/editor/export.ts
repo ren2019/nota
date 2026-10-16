@@ -124,17 +124,18 @@ function baseName(app: App): string {
 
 export async function exportCurrentPagePng(app: App): Promise<void> {
   await app.whenIdle();
-  const painter = app.mode === "mixed" ? app.mixedPainter : app.painter;
-  if (!painter) throw new Error(t("export.noSvg"));
-  const svg = exportPage(app, app.pageIndex, exportFooterContext());
+  const live = app.mode === "mixed" ? app.mixedPainter : app.painter;
+  if (!live) throw new Error(t("export.noSvg"));
+  const painter = await live.outputForLyrics(app.showLyrics);
+  const index = Math.min(app.pageIndex, painter.pageCount - 1);
+  const svg = exportPage(app, index, exportFooterContext(), painter);
   const bytes = await svgToBytes(svg, 2, colorToCss(app.bgColor));
-  await saveBytes(bytes, t("export.pngName", { name: baseName(app), n: app.pageIndex + 1 }), "image/png");
+  await saveBytes(bytes, t("export.pngName", { name: baseName(app), n: index + 1 }), "image/png");
 }
 
 /** One shared decoration path for every PDF/PNG page. */
-function exportPage(app: App, index: number, context: FooterContext): SVGSVGElement {
+function exportPage(app: App, index: number, context: FooterContext, painter: ScorePainter): SVGSVGElement {
   const mixed = app.mode === "mixed";
-  const painter = mixed ? app.mixedPainter! : app.painter;
   const continuous = !mixed && app.viewMode !== "expanded" && !resolvePaper(app.paperState("jianpu").page);
   const source = [painter.footerSource(index), app.exportSourceDescription].filter(Boolean).join(" · ");
   return withExportFooter(painter.renderPage(index), painter.pageSize(index), index, painter.pageCount, continuous, { ...context, source });
@@ -148,7 +149,8 @@ export async function jianpuPngPages(app: App): Promise<{ name: string; bytes: U
   // Render all pages before the first asynchronous rasterization. A setting or
   // document change during a long export must not mix two output projections.
   const title = baseName(app);
-  const snapshots = Array.from({ length: app.painter.pageCount }, (_, i) => exportPage(app, i, context));
+  const painter = await app.painter.outputForLyrics(app.showLyrics);
+  const snapshots = Array.from({ length: painter.pageCount }, (_, i) => exportPage(app, i, context, painter));
   const pages = [];
   for (const [i, svg] of snapshots.entries()) {
     const { width, height } = svgSize(svg);
@@ -218,7 +220,7 @@ export async function exportPptx(app: App): Promise<void> {
  *  否则导出的投影片会带着原样档的字号与颜色。 */
 export function pptxPainter(app: App): ScorePainter {
   const cur = app.painter;
-  if (cur.renderer === "jianpu" && cur.jianpuView === "expanded") return cur;
+  if (cur.renderer === "jianpu" && cur.jianpuView === "expanded") return cur.outputForLyricsSync(app.showLyrics);
   const req = app.expandedRequest();
   if (!req) throw new Error(t("export.noPuLines"));
   const p = new ScorePainter(cur.resources);
@@ -301,15 +303,16 @@ export async function exportPuMusicXml(app: App): Promise<void> {
 /** Export staff pages to a directly downloadable PDF. */
 export async function exportMixedPdf(app: App): Promise<void> {
   await app.whenIdle();
-  const painter = app.mixedPainter;
-  if (!painter || app.mode !== "mixed") return;
+  const live = app.mixedPainter;
+  if (!live || app.mode !== "mixed") return;
+  const painter = await live.outputForLyrics(app.showLyrics);
   const { w: wPt, h: hPt } = painter.pageSize(0);
   const context = exportFooterContext();
   const bg = app.bgColor;
   const title = painter.title;
   // Snapshot every page before imports/dialogs/rasterization yield. A concurrent
   // preference switch must not replace later pages with another projection.
-  const snapshots = Array.from({ length: painter.pageCount }, (_, i) => exportPage(app, i, context));
+  const snapshots = Array.from({ length: painter.pageCount }, (_, i) => exportPage(app, i, context, painter));
 
   if (isTauriRuntime()) {
     // Tauri path: serialize SVGs and invoke Rust export_pdf command
