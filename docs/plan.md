@@ -67,3 +67,7 @@
 ## 乐谱页脚与来源排版（已在集成分支完成）
 
 [GitHub issue #7](https://github.com/ren2019/nota/issues/7) 已实现：底部右侧品牌与官方 slogan，左侧小字来源；保留原稿、普通副标题和作曲者。两轴审查完成且发现已修复，测试、构建与 Safari PDF/PNG/PPTX 实际验收通过，详见 [验收记录](export-footer-source-acceptance.md)。代码位于 `integration/export-footer-source`，未合入 main 或更新正式部署；#6 的应用界面走查另行跟踪。
+
+## 两行页脚与图形标志（已在集成分支完成）
+
+[GitHub issue #8](https://github.com/ren2019/nota/issues/8) 按用户后续决定调整为：首行来源左、日期/页码右，次行图形标志、署名与 slogan 靠左。保留三开关及长来源保护，两轴审查无发现，测试、构建及 Safari 实际导出通过。代码位于 `integration/footer-two-row`，详见 [验收记录](footer-two-row-acceptance.md)；本轮未合入 main 或更新正式部署。
