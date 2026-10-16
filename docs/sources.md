@@ -3,7 +3,6 @@
 ## 需求来源
 
 - [ChatGPT 分享对话：开源简谱转换方案](https://example.invalid/removed-private-discussion)
-- 当前项目目录：`/path/to/nota`。
 
 读取方式：remio `web_get` 仅返回部分消息，随后通过已登录 Edge 的分享页核对用户需求和助手回复。以用户后段对“歌词次要”“两种转换都需要”“设计应简化”的修正为准。
 

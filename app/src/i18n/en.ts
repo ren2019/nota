@@ -109,7 +109,7 @@ export const en: Record<MsgKey, string> = {
   "start.score": "Open score",
   "start.score.sub": "Continue editing a score file",
   "start.score.formats": "123 · JPWABC · jianpu-ly · Text jianpu · MusicXML · ABC",
-  "start.privacy": "Recognize on this device; share saved scores with your family",
+  "start.privacy": "Recognize on this device; save scores to this instance",
   "start.sample": "Open a sample score",
   "start.progress": "Recognizing and typesetting…",
   "start.progress.sub": "The editable score will appear when done",

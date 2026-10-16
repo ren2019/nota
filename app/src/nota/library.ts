@@ -47,7 +47,7 @@ export function mountLibrary(app: App, revealWorkspace: () => void) {
   root.setAttribute("aria-labelledby", "library-title");
   root.innerHTML = `
     <div class="library-heading">
-      <div><span class="eyebrow">一起练习，慢慢收藏</span><h2 id="library-title">我们的曲谱库 <span id="library-count"></span></h2>
+      <div><span class="eyebrow">收藏曲谱，继续练习</span><h2 id="library-title">曲谱库 <span id="library-count"></span></h2>
       <p>把喜欢的曲子留在这里，下次接着练。</p></div>
       <button id="library-refresh" class="library-refresh" type="button">刷新</button>
     </div>
@@ -55,7 +55,7 @@ export function mountLibrary(app: App, revealWorkspace: () => void) {
       <input id="library-search" type="search" placeholder="搜索曲名或调号" aria-label="搜索曲谱库" autocomplete="off"></label>
     <p id="library-message" class="library-message" role="status" aria-live="polite">正在打开曲谱库…</p>
     <div id="library-list" class="library-list"></div>
-    <p class="library-location">曲谱保存在本机 Nota 服务中，访问同一服务的家人共享。</p>`;
+    <p class="library-location">曲谱保存在当前实例，访问同一实例的人共享。</p>`;
   document.querySelector(".start-content")!.append(root);
   const search = root.querySelector<HTMLInputElement>("#library-search")!;
   const list = root.querySelector<HTMLDivElement>("#library-list")!;
@@ -210,7 +210,7 @@ export function mountLibrary(app: App, revealWorkspace: () => void) {
       try { saved = await write(); }
       catch (e) {
         if (!(e instanceof LibraryError) || e.status !== 409) throw e;
-        if (!(await showConfirmDialog("曲谱已被家人更新", "保留家人的更新，把你现在的版本另存为一份新曲谱吗？"))) return;
+        if (!(await showConfirmDialog("曲谱已被其他人更新", "保留对方的更新，把你现在的版本另存为一份新曲谱吗？"))) return;
         existing = null;
         saved = await write();
       }

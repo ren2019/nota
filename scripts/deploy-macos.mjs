@@ -21,6 +21,8 @@ execFileSync(process.execPath, [vite, "build"], { cwd: app, stdio: "inherit" });
 mkdirSync(path.dirname(plist), { recursive: true });
 mkdirSync(runtime, { recursive: true });
 const localName = execFileSync("/usr/sbin/scutil", ["--get", "LocalHostName"], { encoding: "utf8" }).trim();
+const allowedHosts = [...new Set([`${localName}.local`, ...(process.env.NOTA_ALLOWED_HOSTS ?? "").split(",")]
+  .map((host) => host.trim().toLowerCase()).filter(Boolean))].join(",");
 const args = [process.execPath, vite, "preview", "--host", "0.0.0.0", "--port", "5173", "--strictPort"];
 writeFileSync(plist, `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -30,7 +32,7 @@ writeFileSync(plist, `<?xml version="1.0" encoding="UTF-8"?>
 <key>WorkingDirectory</key><string>${xml(app)}</string>
 <key>EnvironmentVariables</key><dict>
 <key>PATH</key><string>${xml(path.dirname(process.execPath))}:/usr/bin:/bin:/usr/sbin:/sbin</string>
-<key>NOTA_ALLOWED_HOSTS</key><string>${xml(localName)}.local</string>
+<key>NOTA_ALLOWED_HOSTS</key><string>${xml(allowedHosts)}</string>
 </dict>
 <key>RunAtLoad</key><true/>
 <key>KeepAlive</key><true/>
