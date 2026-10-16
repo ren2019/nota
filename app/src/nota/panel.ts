@@ -6,6 +6,7 @@ import "./practice.css";
 import { showFooterSettings } from "./footer-settings";
 import { compareReference, scoreReference } from "./structured-score";
 import { parse123 } from "../j123/parse";
+import { t } from "../i18n";
 
 /** A small addition to Dolce's workbench; all editing and playback stay upstream. */
 export function mountPracticePanel(app: App): void {
@@ -30,11 +31,11 @@ export function mountPracticePanel(app: App): void {
     <div class="practice-bottom">
       <p id="practice-explain">选择孩子适合弹的调，旋律关系和节奏保持不变。</p>
       <div class="practice-exports">
-        <label>数字大小<select id="practice-size" aria-label="练习谱数字大小"><option value="20">大字</option><option value="16">标准</option><option value="24">特大</option></select></label>
+        <label>${t("practice.size.label")}<select id="practice-size" aria-label="${t("practice.size.aria")}"><option value="20">${t("practice.size.large")}</option><option value="16">${t("practice.size.standard")}</option><option value="24">${t("practice.size.extraLarge")}</option></select></label>
         <button id="practice-a4" class="button button-secondary">A4 练习版</button>
         <button id="practice-png" class="button button-secondary">下载 PNG</button>
         <button id="practice-pdf" class="button button-secondary">下载 A4 PDF</button>
-        <button id="practice-footer" class="practice-restore">导出页脚</button>
+        <button id="practice-footer" class="practice-restore">${t("settings.footer.title")}</button>
         <button id="practice-restore" class="practice-restore" disabled>还原转换</button>
       </div>
     </div>
@@ -55,6 +56,14 @@ export function mountPracticePanel(app: App): void {
     result.classList.toggle("is-error", error);
   };
   const refresh = () => {
+    const selectedSize = app.practiceFontSize ?? app.fontSize;
+    let custom = size.querySelector<HTMLOptionElement>("option[data-custom]");
+    if (![16, 20, 24].includes(selectedSize)) {
+      if (!custom) { custom = document.createElement("option"); custom.dataset.custom = "true"; size.append(custom); }
+      custom.value = String(selectedSize);
+      custom.textContent = t("practice.size.custom", { size: selectedSize });
+    } else custom?.remove();
+    size.value = String(selectedSize);
     const text = app.getText();
     if (!busy && text !== observedText) feedback("");
     observedText = text;
@@ -76,10 +85,12 @@ export function mountPracticePanel(app: App): void {
     finally { busy = false; button.textContent = text; refresh(); }
   };
   const a4 = async () => {
+    // Capture before changing view: original and expanded keep independent styles.
+    const fontSize = Number(size.value);
     await app.setViewMode("original");
     app.applyRenderSettings({
       paper: { jianpu: { paper: "A4", orientation: "portrait", margin: [40, 40, 40, 40] } },
-      fontSize: Number(size.value), color: 0xff000000, bgColor: 0xffffffff,
+      fontSize, color: 0xff000000, bgColor: 0xffffffff,
     });
     await app.whenIdle();
   };
@@ -130,7 +141,10 @@ export function mountPracticePanel(app: App): void {
   el<HTMLButtonElement>("practice-a4").onclick = function () {
     void run(el("practice-a4"), async () => { await a4(); feedback(`已排为 A4 竖版，数字 ${size.value} pt。可继续编辑或直接下载。`); });
   };
-  size.onchange = () => { void run(el("practice-a4"), a4); };
+  size.onchange = () => {
+    app.setPracticeFontSize(Number(size.value));
+    void run(el("practice-a4"), a4);
+  };
   el<HTMLButtonElement>("practice-pdf").onclick = function () {
     void run(el("practice-pdf"), async () => { await a4(); await exportJianpuPdf(app); feedback("A4 PDF 已生成，可直接打印。"); });
   };

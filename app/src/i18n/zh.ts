@@ -1,6 +1,17 @@
 // 界面文案（中文，同时是键的权威清单）。新增文字两边同加：en.ts 漏键 tsc 报错。
 // 占位写 {name}，由 t(key, { name }) 替换。
 export const zh = {
+  "settings.footer.title": "导出页脚",
+  "settings.footer.brand": "显示品牌署名",
+  "settings.footer.date": "显示生成日期",
+  "settings.footer.pageNumbers": "显示页码（仅多页）",
+  "settings.footer.save": "保存设置",
+  "practice.size.label": "数字大小",
+  "practice.size.aria": "练习谱数字大小",
+  "practice.size.standard": "标准",
+  "practice.size.large": "大字",
+  "practice.size.extraLarge": "特大",
+  "practice.size.custom": "当前字号（{size} pt）",
   "settings.tab.jianpu": "简谱输出",
   "settings.jianpu.hint": "在当前设备上立即生效；不改原稿与试听音高。必要的还原号始终保留。",
   "settings.jianpu.explicit": "逐音明确标注（默认） · 1 ♭3 5 ♭3",

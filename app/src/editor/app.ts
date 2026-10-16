@@ -61,7 +61,7 @@ import { MixedSession } from "./mixedsession";
 import { FileFormatSource, FormatSwitch, type FileSwitchHost, type FormatSwitchHost, type OriginFormat } from "./formatswitch";
 import type { JianpuLayoutMode, JpProfileName } from "../jianpu/profile";
 import {
-  loadPersistedSettings, savePersistedSettings,
+  loadPersistedSettings, savePersistedSettings, practiceFontSize,
 } from "./settings";
 export type { OmrFormat } from "../omr";
 
@@ -163,6 +163,16 @@ export class App implements OmrHost, PlaybackHost, FormatHost, FormatSwitchHost,
 
   /** Current-device output preference; never changes the editor/library source. */
   jianpuAccidentals: JianpuAccidentalMode = DEFAULT_JIANPU_ACCIDENTALS;
+
+  /** No preset is assumed for existing users: preserve their current style size. */
+  practiceFontSize: 16 | 20 | 24 | null = null;
+
+  setPracticeFontSize(size: number): void {
+    const next = practiceFontSize(size);
+    if (next === null || next === this.practiceFontSize) return;
+    this.practiceFontSize = next;
+    this.saveSettings();
+  }
 
   setJianpuAccidentals(mode: JianpuAccidentalMode): void {
     const next = jianpuAccidentalMode(mode);
@@ -627,6 +637,7 @@ export class App implements OmrHost, PlaybackHost, FormatHost, FormatSwitchHost,
     const s = loadPersistedSettings();
     if (!s) return;
     this.jianpuAccidentals = jianpuAccidentalMode(s.jianpuAccidentals);
+    this.practiceFontSize = practiceFontSize(s.practiceFontSize);
     this.omr.loadSettings(s);
     this.playback.loadSettings(s);
     this.visual.loadSettings(s);
@@ -661,6 +672,7 @@ export class App implements OmrHost, PlaybackHost, FormatHost, FormatSwitchHost,
   saveSettings(): void {
     savePersistedSettings({
       jianpuAccidentals: this.jianpuAccidentals,
+      practiceFontSize: this.practiceFontSize,
       styleLayers: this._userLayers,
       zoom: this.zoom,
       mixedHideBarNumber: this.mixedHideBarNumber,

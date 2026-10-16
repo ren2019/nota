@@ -9,6 +9,8 @@ import { CONVERT_TARGETS } from "../model/convert";
 import { getLangPref, setLangPref, t, type LangPref, type MsgKey } from "../i18n";
 import { targetLabel } from "../i18n/labels";
 import { jianpuAccidentalMode } from "../nota/jianpu-output";
+import { footerControls } from "../nota/footer-controls";
+import { readFooterOptions, writeFooterOptions } from "../nota/export-footer";
 
 /** 模态框的底座：遮罩 + 盒（标题 / 内容 / 页脚）、Esc 与点遮罩关闭。按钮与内容由调用方给。
  *  `close` 可重复调用，`onClose` 只回一次（不论是按钮、Esc 还是点遮罩关的）。 */
@@ -441,6 +443,7 @@ function settingsTabs(pages: readonly [string, string, HTMLElement][]): HTMLElem
 
 export function showOptionsDialog(app: App): void {
   const initialAccidentalMode = app.jianpuAccidentals;
+  const footerOptions = readFooterOptions();
   // 分标签页摆版面、页眉、简谱输出与其他，避免小屏放不下确定按钮。
   const pLayout = document.createElement("div");
   const pHeader = document.createElement("div");
@@ -463,6 +466,10 @@ export function showOptionsDialog(app: App): void {
     label.append(input, text);
     pJianpu.append(label);
   }
+
+  const footerHeading = document.createElement("h3");
+  footerHeading.textContent = t("settings.footer.title");
+  pJianpu.append(footerHeading, footerControls(footerOptions));
 
   const view = app.viewMode;
   const isMixed = app.mode === "mixed"; // 五线谱 / 混排
@@ -675,6 +682,7 @@ export function showOptionsDialog(app: App): void {
   ]);
 
   modal(t("settings.title"), body, () => {
+    writeFooterOptions(footerOptions);
     // 没摆出来的项一律不回灌：把它们的初值当用户输入送回去，等于替用户做了没做过的决定。
     const [w, h] = isPpt ? PAGE_RATIOS[ratio.value] ?? [app.pageW, app.pageH] : [undefined, undefined];
     const fontSize = isJp ? parseInt(fs.value, 10) || app.fontSize : undefined;
