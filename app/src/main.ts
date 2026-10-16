@@ -21,6 +21,7 @@ import { mountLibrary } from "./nota/library";
 import { mountPracticeControls } from "./nota/practice-controls";
 import { CurrentDocumentSession } from "./nota/document-session";
 import { mountDocumentDetail, type DetailMode, type DocumentDetail } from "./nota/detail";
+import { mountNotaExport } from "./nota/export-dialog";
 
 // 注册 Bravura 与 Bravura Text @font-face（替代 styles.css 里的静态声明），按 Vite base
 // 解析字体 URL。和弦内的 csym 字形必须走真实 Text 变体，不能用普通 Bravura 等比模拟。
@@ -132,6 +133,7 @@ async function boot() {
   const revealWorkspace = (mode: DetailMode = "edit") => detail.open(mode);
   const library = mountLibrary(app, revealWorkspace, session);
   detail = mountDocumentDetail(app, session, () => { void library.refresh(); });
+  mountNotaExport(app);
   // Extensions receive the same App/session/shell; no second document is created.
   app.saveToLibrary = library.save;
   const showStartScreen = () => detail.home();

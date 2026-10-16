@@ -1,4 +1,5 @@
 import { projectScoreFooter, scoreFooterSource } from "../nota/score-footer-source";
+import { projectLyrics } from "../nota/lyric-output";
 // 唯一的排版器 `ScorePainter`：按请求排版（简谱原样 / 展开、五线谱 / 混排），持有提交后的结果、
 // 页面渲染（DOM 映射）、点选与播放高亮索引。排页算法在各自模块（`original/compose/`、
 // `mixed/staffpages.ts`），SVG 出口在 `render.ts`，这里只管请求版本、结果提交与交互状态。
@@ -35,6 +36,7 @@ import { projectJianpuOutput, type JianpuAccidentalMode } from "../nota/jianpu-o
 
 /** 五线谱 / 混排的请求（`doc` 须是 MusicXML 形状，见 `mixed/layout.ts`）。 */
 export interface StaffPaintRequest {
+  readonly showLyrics?: boolean;
   readonly view: "staff" | "mixed";
   readonly doc: ScoreDoc;
   /** Captured preference for the jianpu overlay only; staff notation is unchanged. */
@@ -51,6 +53,7 @@ export interface StaffPaintRequest {
 /** 原样文档这一路（文本谱与多声部 123/ABC、MusicXML 的原样档）：整份 `ScoreDoc` 按源行排，印刷原版观感。
  *  `expanded`：展开档（反复逐遍展开、一遍一页、投影片纸），开发开关下才发（子计划 5）。 */
 export interface JianpuPaintRequest {
+  readonly showLyrics?: boolean;
   readonly view: "original" | "expanded";
   readonly doc: ScoreDoc;
   /** Captured output preference. Omit to retain the caller's existing marks. */
@@ -251,7 +254,7 @@ export class ScorePainter {
     const paper = resolvePaper(sheet.page);
     // 展开档：投影片纸（展开档样式的 `page.size`）
     const slide = req.view === "expanded" ? { width: sheet.page.size?.[0] ?? 960, height: sheet.page.size?.[1] ?? 540, continuous: false } : null;
-    const sourceDoc = projectScoreFooter(req.doc);
+    const sourceDoc = projectLyrics(projectScoreFooter(req.doc), req.showLyrics);
     const doc = req.accidentalMode ? projectJianpuOutput(sourceDoc, req.accidentalMode) : sourceDoc;
     const r = layoutJianpu(doc, {
       style: jianpuStyleOf(sheet),
@@ -299,7 +302,7 @@ export class ScorePainter {
     const options = staffOptionsOf(meta, req.style);
     options.hideBarNumber = req.hideBarNumber;
     options.page = req.page;
-    const sourceDoc = projectScoreFooter(req.doc);
+    const sourceDoc = projectLyrics(projectScoreFooter(req.doc), req.showLyrics);
     const doc = req.view === "mixed" && req.accidentalMode ? projectJianpuOutput(sourceDoc, req.accidentalMode) : sourceDoc;
     const score = layoutStaff(doc, options);
     const { pages, placed } = layoutStaffPages(score, req.view === "mixed", req.jianpuPart ?? 0);

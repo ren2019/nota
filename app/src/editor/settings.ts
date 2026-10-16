@@ -15,6 +15,8 @@ const KEY = "dolce-render-settings";
 export interface PersistedSettings {
   /** Global jianpu display preference; validate at the storage boundary. */
   jianpuAccidentals?: unknown;
+  /** Display/export visibility only; old preferences show lyrics. */
+  showLyrics?: unknown;
   /** Last explicitly selected practice preset; null means follow the existing style. */
   practiceFontSize?: unknown;
   /** 样式用户层（`App._userLayers`：每个主题一组 `StyleRule`）。交 `sanitizeLayer` 校验。 */
