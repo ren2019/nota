@@ -6,13 +6,15 @@
 
 B 单曲详情双态、L1 紧凑首页、完整 Dolce 独立编辑页、保存入库、播放/阅读、调式、紧凑导出、曲谱管理和中文联网查谱均已合入 main 并上线。最终功能基线为 `f6af6a0`；用户已确认本轮交付验收通过，并确认 iPhone 添加到主屏幕后能独立启动、打开曲谱。发布修复及证据边界见[当前发布与验收](acceptance/current-release.md)。
 
-## 仍需完成的验收
+## 候选集成与收口
 
-- [#11 完整 Dolce 编辑页](https://github.com/ren2019/nota/issues/11)：原能力已保留并有源码对照与代表性操作证据；完整功能组逐项人工操作尚未补齐，不以界面接近认定全部验收通过。
-- [#19 整合与设备验收](https://github.com/ren2019/nota/issues/19)：集中记录跨入口故障、输入/管理闭环、iPhone 细项及 Android 缺设备证据。iPhone 安装、独立启动和打开曲谱已通过，不重复作为待验。
-- [#9 父规格](https://github.com/ren2019/nota/issues/9)：实施已上线，保留至上述剩余验收有明确结论。
+本轮 `integration/nota-spec9-acceptance` 单独承载追加修复，尚未部署；生产仍为 `f6af6a0`。用户最新要求以浏览器自动化完成原先请求的逐项操作，本轮据此验收，不再安排人工补测。
 
-其余实施票按用户已接受的交付范围收口，未逐项完成的人工操作证据留在 #19，不把它们补写成测试通过。具体清单见[整合验收记录](acceptance/nota-ia-spec-9.md)。
+- [#11 完整 Dolce 编辑页](https://github.com/ren2019/nota/issues/11)：57 组实际 App 自动操作，补齐原能力逐组证据并修复内联编辑焦点问题；入口、格式、平台和边界见[对照表](acceptance/dolce-editor-parity.md)。
+- [#19 整合与设备验收](https://github.com/ren2019/nota/issues/19)：Chromium 桌面与 WebKit iPhone 浏览器参数下各 18 条真实 App 旅程、实际导出及真实播放证据；故障、管理、新图片、查谱异步闭环已有回归。系统键盘、Files、锁屏 / 杀进程及 Android 真机不伪造为通过，只保留证据边界。
+- [#9 父规格](https://github.com/ren2019/nota/issues/9)：实施与上述自动验收汇总后，按最终审查及 tracker 记录收口。真机此前确认的主屏幕启动、开谱和登录保持继续有效。
+
+详细结果与可重跑命令见[追加复验](acceptance/nota-ia-followup.md)；不以候选分支通过代表生产已同步，不将历史未执行项改写成当时通过。
 
 ## 能力限制与后续候选
 

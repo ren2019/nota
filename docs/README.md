@@ -15,6 +15,7 @@
 
 ## 验收证据
 
+- [IA 追加复验](acceptance/nota-ia-followup.md)：候选集成的双引擎旅程、真实输出与音频、手机参数和自动化边界。
 - [IA 整合验收](acceptance/nota-ia-spec-9.md)：分层记录自动测试、浏览器、成品及设备证据，保留未验项。
 - [完整 Dolce 功能对照](acceptance/dolce-editor-parity.md)：固定上游版本、原入口和实际操作覆盖。
 - [IA 代码审查](acceptance/nota-ia-review.md)：审查发现及修复记录。

@@ -6,25 +6,35 @@ import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { createServer } from "vite";
-import { chromium } from "playwright";
+import { chromium, webkit, devices } from "playwright";
 import sharp from "sharp";
 import { unzipSync } from "fflate";
 const root = fileURLToPath(new URL("../..", import.meta.url));
 const temporary = await mkdtemp(`${tmpdir()}/nota-journeys-`);
-const evidence = `${root}/local/qa/spec9-journeys`;
+const browserName = process.env.NOTA_BROWSER || "chromium";
+const browserType = { chromium, webkit }[browserName];
+if (!browserType) throw new Error("NOTA_BROWSER must be chromium or webkit");
+const mobile = process.env.NOTA_DEVICE === "iphone";
+if (process.env.NOTA_DEVICE && !mobile) throw new Error("NOTA_DEVICE must be iphone or omitted");
+const contextOptions = mobile ? { ...devices["iPhone 13"], viewport: { width: 390, height: 844 } } : { viewport: { width: 1100, height: 850 } };
+delete contextOptions.defaultBrowserType;
+const profile = `${browserName}-${mobile ? "iphone" : "desktop"}`;
+const evidence = `${root}/local/qa/spec9-journeys${profile === "chromium-desktop" ? "" : `/${profile}`}`;
 await mkdir(evidence, { recursive: true });
 process.env.NOTA_LIBRARY_DIRECTORY = temporary;
 const server = await createServer({ root: `${root}/app`, configFile: `${root}/app/vite.config.ts`, server: { host: "127.0.0.1", port: 5192, strictPort: true, hmr: false } });
 await server.listen();
 const base = "http://127.0.0.1:5192";
-const browser = await chromium.launch({ headless: true });
+const browser = await browserType.launch({ headless: true });
 const results = [];
 function deferred() {
   let resolve;
-  const promise=new Promise(done => {resolve=done;});
-  return {promise,resolve};
+  const promise = new Promise((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
 }
-const pauseResponse=()=>({arrived:deferred(),hold:deferred()});
+const pauseResponse = () => ({ arrived: deferred(), hold: deferred() });
 const score = (title = "印刷标题", notes = "1 2 3 4") => `X:1
 T:${title}
 M:4/4
@@ -50,12 +60,18 @@ async function opened(page, item) {
 async function mode(page, expected) {
   await page.waitForFunction((value) => document.getElementById("app")?.dataset.notaMode === value, expected);
 }
+async function activate(locator) {
+  if (mobile) await locator.tap();
+  else await locator.click();
+}
 async function editor(page) {
-  await page.locator('[data-mode="edit"]').click();
-  await page.locator("#nota-open-editor").click();
+  await activate(page.locator('[data-mode="edit"]'));
+  await activate(page.locator("#nota-open-editor"));
+  if (await page.locator("#btn-mobile-code").isVisible()) await activate(page.locator("#btn-mobile-code"));
   await page.locator('.cm-content[contenteditable="true"]').waitFor({ state: "visible" });
 }
 async function edit(page, text) {
+  if (await page.locator("#btn-mobile-code").isVisible() && !await page.locator('.cm-content[contenteditable="true"]').isVisible()) await activate(page.locator("#btn-mobile-code"));
   await page.locator('.cm-content[contenteditable="true"]').fill(text);
   await page.waitForFunction((text2) => window.__app?.getText() === text2, text);
   await page.evaluate(() => window.__app.whenIdle());
@@ -64,24 +80,24 @@ async function doc(page) {
   return page.evaluate(() => ({ text: window.__app.getText(), dirty: window.__app.isDirty(), format: window.__app.docFormat, hasInputs: window.__app.omr.hasInputs }));
 }
 async function detail(page) {
-  await page.locator("#nota-editor-back").click();
+  await activate(page.locator("#nota-editor-back"));
 }
 async function save(page) {
-  await page.locator("#nota-detail-save").click();
+  await activate(page.locator("#nota-detail-save"));
 }
 const dialog = (page) => page.getByRole("dialog");
 async function choose(page, label) {
-  await dialog(page).getByRole("button", { name: label, exact: true }).click();
+  await activate(dialog(page).getByRole("button", { name: label, exact: true }));
 }
 async function more(page, label) {
-  await page.getByRole("button", { name: "更多曲谱操作", exact: true }).click();
+  await activate(page.getByRole("button", { name: "更多曲谱操作", exact: true }));
   await choose(page, label);
 }
 async function home(page) {
-  await page.locator("#nota-back").click();
+  await activate(page.locator("#nota-back"));
 }
 async function test(name, work) {
-  const context = await browser.newContext({ viewport: { width: 1100, height: 850 } });
+  const context = await browser.newContext(contextOptions);
   const page = await context.newPage();
   page.setDefaultTimeout(12e3);
   const errors = [];
@@ -406,10 +422,10 @@ try {
     await query.fill("贝多芬");
     await query.press("Enter");
     await page.getByRole("button", { name: /受控来源曲 受控作者/ }).click();
-    const oldSearchResponse=page.waitForResponse(response=>new URL(response.url()).searchParams.get("q")==="旧查询");
+    const oldSearchResponse = page.waitForResponse((response) => new URL(response.url()).searchParams.get("q") === "旧查询");
     delayedSearch.hold.resolve();
     await (await oldSearchResponse).finished();
-    await page.evaluate(()=>new Promise(requestAnimationFrame));
+    await page.evaluate(() => new Promise(requestAnimationFrame));
     assert.equal(await page.getByText("旧结果", { exact: true }).count(), 0);
     await page.locator(".nota-search-back").click();
     await page.locator("#nota-find-score").click();
@@ -421,11 +437,11 @@ try {
     await query.fill("无结果");
     await query.press("Enter");
     await page.locator(".nota-search-status").getByText(/没有找到/).waitFor();
-    const oldPrepareResponse=page.waitForResponse(response=>new URL(response.url()).pathname.endsWith("/prepare"));
+    const oldPrepareResponse = page.waitForResponse((response) => new URL(response.url()).pathname.endsWith("/prepare"));
     delayedPrepare.hold.resolve();
     await (await oldPrepareResponse).finished();
     delayedPrepare = null;
-    await page.evaluate(()=>new Promise(requestAnimationFrame));
+    await page.evaluate(() => new Promise(requestAnimationFrame));
     assert.equal(await page.locator(".nota-source-adopt").isDisabled(), true);
     assert.equal((await doc(page)).text, original);
     await query.fill("肖邦");
@@ -595,9 +611,83 @@ try {
     assert.equal((await api(`/${item.id}`)).body.text, item.text);
     assert.equal(await page.getByRole("button", { name: "重新选择图片", exact: true }).isVisible(), true);
   });
+  await test("mobile orientation and Chinese confirmation keep controls reachable with actual downloads", async (page) => {
+    const item = await seed("手机中文确认对象");
+    await opened(page, item);
+    for (const viewport of [{ width: 390, height: 844 }, { width: 844, height: 390 }]) {
+      await page.setViewportSize(viewport);
+      await page.evaluate(() => new Promise(requestAnimationFrame));
+      assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "no whole-page horizontal overflow");
+      const titleBefore = await page.locator("#nota-document-title").textContent();
+      await more(page, "重命名");
+      await dialog(page).getByRole("textbox").fill("中文长标题：练习与编辑，确认后仍是同一首曲谱");
+      await choose(page, "取消");
+      assert.equal(await page.locator("#nota-document-title").textContent(), titleBefore);
+      await page.locator('[data-mode="edit"]').click();
+      await more(page, "重命名");
+      await dialog(page).getByRole("textbox").fill("中文已确认");
+      await choose(page, "确认重命名");
+      await page.locator("#nota-document-title").getByText("中文已确认", { exact: true }).waitFor();
+      await page.locator('[data-mode="practice"]').click();
+      await page.screenshot({ path: `${evidence}/orientation-${viewport.width}.png` });
+    }
+    await page.locator("#nota-detail-export").click();
+    for (const [buttonName, extension] of [["下载 PDF / 打印", "pdf"], ["下载 PNG 图片", "image"]]) {
+      const downloadEvent = page.waitForEvent("download");
+      await dialog(page).getByRole("button", { name: buttonName, exact: true }).click();
+      const downloaded = await downloadEvent;
+      const bytes = await readFile(await downloaded.path());
+      assert.ok(bytes.length > 1e3);
+      if (extension === "pdf") assert.equal(bytes.subarray(0, 5).toString(), "%PDF-");
+      else assert.ok(bytes[0] === 137 && bytes.subarray(1, 4).toString() === "PNG" || bytes[0] === 80 && bytes[1] === 75);
+      await downloaded.saveAs(`${evidence}/mobile-download-${downloaded.suggestedFilename()}`);
+    }
+    await choose(page, "关闭");
+    assert.equal(new URL(page.url()).searchParams.get("song"), item.id);
+  });
+  await test("tab switch returns to the same dirty draft and real playback remains operable", async (page, context) => {
+    const item = await seed("切回前台保稿");
+    await opened(page, item);
+    await editor(page);
+    const changed = score("前台切回的修改", "7 6 5 4");
+    await edit(page, changed);
+    await detail(page);
+    await page.locator('[data-mode="practice"]').click();
+    await page.evaluate(() => {
+      window.__qaLifecycle = [];
+      for (const event of ["visibilitychange", "focus", "blur", "pagehide", "pageshow"]) addEventListener(event, () => window.__qaLifecycle.push({ event, visibility: document.visibilityState }));
+    });
+    const beforeVisibility = await page.evaluate(() => document.visibilityState);
+    const other = await context.newPage();
+    await other.goto("about:blank");
+    await other.bringToFront();
+    await page.waitForTimeout(150);
+    const duringVisibility = await page.evaluate(() => document.visibilityState);
+    await page.bringToFront();
+    await other.close();
+    assert.equal((await doc(page)).text, changed);
+    assert.equal((await doc(page)).dirty, true);
+    assert.equal(new URL(page.url()).searchParams.get("song"), item.id);
+    await page.locator("#btn-play").click();
+    await page.waitForFunction(() => window.__app.playback.state === "playing", null, { timeout: 15e3 });
+    await page.waitForFunction(() => Number(document.getElementById("play-progress").value) > 0.15);
+    await page.locator("#btn-play").click();
+    await page.waitForFunction(() => window.__app.playback.state === "paused");
+    await page.locator('[data-mode="edit"]').click();
+    await page.waitForFunction(() => window.__app.playback.state === "stopped");
+    assert.equal((await doc(page)).text, changed);
+    const observed = await page.evaluate(() => ({ visibility: document.visibilityState, events: window.__qaLifecycle }));
+    await writeFile(`${evidence}/tab-lifecycle.json`, JSON.stringify({ beforeVisibility, duringVisibility, ...observed, scope: "browser tab switch only; not iOS OS suspension, lockscreen, calls, or process termination" }, null, 2));
+  });
 } finally {
-  await writeFile(`${evidence}/report.json`, JSON.stringify({ baseline:execFileSync("git",["rev-parse","HEAD"],{cwd:root,encoding:"utf8"}).trim(),
-    filter:process.env.NOTA_JOURNEY_FILTER ?? null, boundary: "real App, visible UI, real HTTP temporary library; external source transport controlled", results }, null, 2));
+  await writeFile(`${evidence}/report.json`, JSON.stringify({
+    baseline: execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim(),
+    filter: process.env.NOTA_JOURNEY_FILTER ?? null,
+    browser: { name: browserName, version: browser.version(), profile, viewport: contextOptions.viewport, isMobile: mobile, hasTouch: mobile },
+    deviceEvidence: "desktop browser automation with optional mobile emulation; not a physical iPhone",
+    boundary: "real App, visible UI, real HTTP temporary library; external source transport controlled",
+    results
+  }, null, 2));
   await browser.close();
   await server.close();
   await rm(temporary, { recursive: true, force: true });
