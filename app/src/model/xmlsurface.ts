@@ -50,6 +50,26 @@ export function surfaceOf(obj: object | null | undefined, slot = ""): Element | 
   return obj ? SURFACE.get(obj)?.get(slot) : undefined;
 }
 
+/** Read-only layout projection: clone semantic data and retain every XML slot.
+ * DOM nodes stay shared as source references; consumers must not edit them. */
+export function cloneWithSurface<T extends object>(source: T): T {
+  const copy = structuredClone(source);
+  const visited = new WeakSet<object>();
+  function inherit(from: object, to: object): void {
+    if (visited.has(from)) return;
+    visited.add(from);
+    const slots = SURFACE.get(from);
+    if (slots) SURFACE.set(to, new Map(slots));
+    for (const key of Object.keys(from)) {
+      const a: unknown = (from as Record<string, unknown>)[key];
+      const b: unknown = (to as Record<string, unknown>)[key];
+      if (a && b && typeof a === "object" && typeof b === "object") inherit(a, b);
+    }
+  }
+  inherit(source, copy);
+  return copy;
+}
+
 // ───────────────────────── 查询层 ─────────────────────────
 
 const attrNum = (el: Element | null | undefined, name: string): number | undefined => {

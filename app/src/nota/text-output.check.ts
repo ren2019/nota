@@ -58,3 +58,19 @@ for (const mode of ["explicit", "measure"] as const) {
   if (!xmlMessage.includes("123")) throw new Error(`${mode}: expected lossy XML tie conversion to be rejected`);
 }
 console.log("123 text output: chosen accidentals round-trip without changing the source.");
+
+// Existing format capability checks must guard the new download and practice
+// conversion paths, including sources that are not ABC/MusicXML.
+const { parsePu } = await import("../pu/parse");
+const { planSave } = await import("../model/capability");
+const restWordsXml = xml.replace('<note><pitch><step>C</step><octave>4</octave></pitch>', '<note><rest/>').replace('<type>quarter</type>', '<type>quarter</type><lyric><text>啊</text></lyric>');
+for (const doc of [loadScoreDoc(restWordsXml), parsePu("V:休止歌词\nD:C\nP:4/4\nQ:0@ 1 2 3 ||\nC:啊 风 儿 吹")]) {
+  equal(planSave(doc, "123").some(l => l.feature === "lyricOnRest"), true, `${doc.sourceFormat}: fixture uses an existing unsupported 123 feature`);
+  const before = JSON.stringify(doc);
+  for (const mode of ["explicit", "measure"] as const) {
+    let rejected = false;
+    try { emitJianpu123(doc, mode); } catch (error) { rejected = String(error).includes("123"); }
+    equal(rejected, true, `${doc.sourceFormat}/${mode}: lossy rest lyrics are rejected instead of silently removed`);
+  }
+  equal(JSON.stringify(doc), before, "Rejected text download retains all native lyrics and source");
+}

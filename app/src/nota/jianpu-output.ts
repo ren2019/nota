@@ -1,5 +1,6 @@
 import type { InlineItem, Key, Measure, ScoreDoc } from "../model/doc";
-import { AccidentalCarry, continuesMeasure } from "../model/jianpu";
+import { cloneWithSurface } from "../model/xmlsurface";
+import { AccidentalCarry, continuesMeasure, topNote } from "../model/jianpu";
 
 export type JianpuAccidentalMode = "explicit" | "measure";
 export const DEFAULT_JIANPU_ACCIDENTALS: JianpuAccidentalMode = "explicit";
@@ -10,6 +11,7 @@ export const jianpuAccidentalMode = (value: unknown): JianpuAccidentalMode =>
 interface CarryPair {
   input: AccidentalCarry;
   output: AccidentalCarry;
+  allOutput: AccidentalCarry;
 }
 
 /** Output-only document; callers keep the source document for editing/playback. */
@@ -17,7 +19,7 @@ export function projectJianpuOutput(
   doc: ScoreDoc,
   mode: JianpuAccidentalMode,
 ): ScoreDoc {
-  const output = structuredClone(doc);
+  const output = cloneWithSurface(doc);
   function projectMeasures(measures: Measure[], initialKey: Key): void {
     let key = initialKey;
     let lanes = new Map<string, CarryPair & { grace?: CarryPair }>();
@@ -41,6 +43,7 @@ export function projectJianpuOutput(
             (lane = {
               input: new AccidentalCarry(),
               output: new AccidentalCarry(),
+              allOutput: new AccidentalCarry(),
             }),
           );
         // The existing 123 playback input carries accidentals over the main
@@ -51,8 +54,10 @@ export function projectJianpuOutput(
           ? (lane.grace ??= {
               input: lane.input.fork(),
               output: lane.output.fork(),
+              allOutput: lane.allOutput.fork(),
             })
           : lane;
+        const melody = topNote(element);
         for (const note of element.notes) {
           if (!note.degree) continue;
           // Read the original carry before deriving display marks. Rewriting
@@ -61,7 +66,10 @@ export function projectJianpuOutput(
           // Native ABC/MusicXML already resolve the real pitch, including
           // grace and parallel-voice carry rules of their source notation.
           const pitch = note.pitch ?? fromDegree;
-          const required = context.output.mark(pitch, key);
+          // Only the printed top note may update the melody carry. Hidden
+          // chord tones keep an independent all-note context.
+          const all = context.allOutput.mark(pitch, key);
+          const required = note === melody ? context.output.mark(pitch, key) : all;
           const accidental =
             required ??
             (mode === "explicit"

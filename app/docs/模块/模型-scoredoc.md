@@ -95,6 +95,7 @@ Node 侧经 `src/cli/j123.ts` → `out/cli/j123.js` 使用（`npm run build:cli`
   `Defaults.scaling/pageLayout/lyricFont`（转 123/ABC 的纸与字号）、`Credit` 各字段（识别、页眉字体）。
   `layout-attr-check` 568 份「改一个音 → 整份重写」：点名的坐标逐份计数一致，**其余全部元素与属性逐份不降**
   （只有写出端的语义归一除外：`<elision>` 并字、`<group-barline>`、起止同音的 `<tied>`）。
+  只读排版若要克隆模型，使用 `xmlsurface.ts::cloneWithSurface` 继承全部旁表槽位；只改派生简谱度数，不编辑共享的 XML 原节点。普通 `structuredClone` 不继承这些槽位，会使混排丢失原版面、字体与符干。
   **`fromxml.ts` 新读一个语义字段，要在 `OWNS` 里认领**，否则原节点那份会被回填、与模型打架。
 - `Harmony.kindText` 的**空串要留**：`<kind text="">` 是「不印后缀」，与缺省不同（混排按 `null` / `""` 分）。
 - **换行口径是 MusicXML 的**：`Print.newSystem/newPage` 表示「本小节**起**新系统」。源码的 `$` 写在小节之后，
