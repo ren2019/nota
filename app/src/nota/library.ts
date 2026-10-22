@@ -103,7 +103,8 @@ export function mountLibrary(app: App, revealWorkspace: (mode?: "practice" | "ed
     opening = true;
     button.disabled = true;
     try {
-      if (session.current?.id !== item.id) {
+      // A clean current song may have a newer server revision; keep only unsaved local work.
+      if (session.current?.id !== item.id || !session.dirty) {
         if (!(await app.confirmReplace())) return;
         await session.openLibrary(item.id);
       }

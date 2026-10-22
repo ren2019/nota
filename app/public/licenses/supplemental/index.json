@@ -1,0 +1,79 @@
+[
+  {
+    "package": "@esbuild/darwin-arm64",
+    "version": "0.25.12",
+    "path": "@esbuild_darwin-arm64@0.25.12.txt",
+    "url": "https://raw.githubusercontent.com/evanw/esbuild/208f539945b145e7c9d6d844290f81c3fe5af320/LICENSE.md",
+    "ref": "208f539945b145e7c9d6d844290f81c3fe5af320"
+  },
+  {
+    "package": "@img/sharp-libvips-darwin-arm64",
+    "version": "1.3.4",
+    "path": "@img_sharp-libvips-darwin-arm64@1.3.4.txt",
+    "url": "https://raw.githubusercontent.com/lovell/sharp-libvips/ebb95f8add54eee8bed840e3fb587e4cbec857d7/LICENSE",
+    "ref": "ebb95f8add54eee8bed840e3fb587e4cbec857d7"
+  },
+  {
+    "package": "@napi-rs/canvas-darwin-arm64",
+    "version": "1.0.11",
+    "path": "@napi-rs_canvas-darwin-arm64@1.0.11.txt",
+    "url": "https://raw.githubusercontent.com/Brooooooklyn/canvas/v1.0.11/LICENSE",
+    "ref": "v1.0.11"
+  },
+  {
+    "package": "@pdf-lib/fontkit",
+    "version": "1.1.1",
+    "path": "@pdf-lib_fontkit@1.1.1.txt",
+    "url": "https://raw.githubusercontent.com/spdx/license-list-data/main/text/MIT.txt",
+    "basis": "upstream npm license declaration + standard SPDX license text; no original copyright notice fabricated"
+  },
+  {
+    "package": "@rollup/rollup-darwin-arm64",
+    "version": "4.61.1",
+    "path": "@rollup_rollup-darwin-arm64@4.61.1.txt",
+    "url": "https://raw.githubusercontent.com/rollup/rollup/b77daf0a97cf96e61870cc02de584e923bc70fad/LICENSE.md",
+    "ref": "b77daf0a97cf96e61870cc02de584e923bc70fad"
+  },
+  {
+    "package": "@tauri-apps/cli-darwin-arm64",
+    "version": "2.12.3",
+    "path": "@tauri-apps_cli-darwin-arm64@2.12.3.txt",
+    "url": "https://raw.githubusercontent.com/tauri-apps/tauri/tauri-cli-v2.12.3/LICENSE-MIT",
+    "ref": "tauri-cli-v2.12.3"
+  },
+  {
+    "package": "guid-typescript",
+    "version": "1.0.9",
+    "path": "guid-typescript@1.0.9.txt",
+    "url": "https://raw.githubusercontent.com/spdx/license-list-data/main/text/ISC.txt",
+    "basis": "upstream npm license declaration + standard SPDX license text; no original copyright notice fabricated"
+  },
+  {
+    "package": "onnxruntime-common",
+    "version": "1.30.0",
+    "path": "onnxruntime-common@1.30.0.txt",
+    "url": "https://raw.githubusercontent.com/microsoft/onnxruntime/v1.30.0/LICENSE",
+    "ref": "v1.30.0"
+  },
+  {
+    "package": "onnxruntime-node",
+    "version": "1.30.0",
+    "path": "onnxruntime-node@1.30.0.txt",
+    "url": "https://raw.githubusercontent.com/microsoft/onnxruntime/v1.30.0/LICENSE",
+    "ref": "v1.30.0"
+  },
+  {
+    "package": "onnxruntime-web",
+    "version": "1.30.0",
+    "path": "onnxruntime-web@1.30.0.txt",
+    "url": "https://raw.githubusercontent.com/microsoft/onnxruntime/v1.30.0/LICENSE",
+    "ref": "v1.30.0"
+  },
+  {
+    "package": "smplr",
+    "version": "1.1.0",
+    "path": "smplr@1.1.0.txt",
+    "url": "https://raw.githubusercontent.com/spdx/license-list-data/main/text/MIT.txt",
+    "basis": "upstream npm license declaration + standard SPDX license text; no original copyright notice fabricated"
+  }
+]

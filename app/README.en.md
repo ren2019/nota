@@ -27,9 +27,9 @@ Lyrics sit directly under the notes.
 
 The interface is available in **English and Chinese**: it follows your browser language and can be switched any time in **Settings → Other → Language**. English landing page: <https://lodebar2026.github.io/dolce/en/>.
 
-![A recognized staff-notation hymn side by side with its source image](docs/screenshot-en.png)
+![An original synthetic exercise in the Nota editor](docs/screenshot-en.png)
 
-<sub>A four-part hymn (<i>Holy, Holy, Holy</i>, public-domain score from the Open Hymnal Project) right after staff recognition, in <b>Side by side</b>: the source image on the left, the engraved score on the right; selecting a note boxes it on both.</sub>
+<sub>This current Nota screenshot uses an original, lyric-free synthetic exercise to show source editing and engraving. It is not evidence of automatic recognition accuracy on a real printed score.</sub>
 
 ## Features
 

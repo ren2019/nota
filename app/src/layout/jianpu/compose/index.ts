@@ -15,7 +15,7 @@
 import { applyDocOptions, contentWidth, gridOf, keyLabelSize, type GridPage, type JianpuGrid } from "../metrics";
 import { Font } from "../../font";
 import { Group } from "../../pageitem";
-import { syllableRun } from "../../../engrave/syllable";
+import { lyricSyllableText, syllableRun } from "../../../engrave/syllable";
 import { sectionWordRun } from "../../../engrave/sectionword";
 import { Rect } from "../../../common/geom";
 import { chordTextSegs, harmonyInk, harmonyWidth } from "../../../engrave/chord";
@@ -131,7 +131,7 @@ export function layoutJianpu(source: ScoreDoc, cfg: JianpuLayoutConfig): JianpuL
   };
   const ink: InkMeasurer = {
     lyric(syl) {
-      const text = syl.text + (syl.trailingPunctuation ?? "");
+      const text = lyricSyllableText(syl);
       const run = syllableRun(text, lyricFont, m.style.look.punctCompress);
       const chars = [...text];
       const first = chars[0] ?? "";

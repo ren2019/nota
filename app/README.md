@@ -19,9 +19,9 @@
 | 🍎 | **[macOS 版下载](https://github.com/lodebar2026/dolce/releases/latest)**（`.dmg`，Apple Silicon） | 首次打开提示“已损坏”见 [macOS 打不开](docs/macOS-打不开.md) |
 | 🪟 | **[Windows 版下载](https://github.com/lodebar2026/dolce/releases/latest)**（`x64-setup.exe`） | 安装包，Windows 10/11 x64 |
 
-![简谱图片识别后与原图并排对照](docs/screenshot-zh.png)
+![Nota 自制合成练习谱的源码与实时排版](docs/screenshot-zh.png)
 
-<sub>四声部简谱图片（《圣哉！圣哉！圣哉！》）识别后打开「并排原图」：左边是原图，右边是按原样排出的谱，点一个音两边同时框出。</sub>
+<sub>当前截图来自 Nota：使用自制、无歌词的合成练习谱展示源码与实时排版，不作为真实原谱自动识别准确性的证据。</sub>
 
 ## 特性
 

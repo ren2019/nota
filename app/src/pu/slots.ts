@@ -356,6 +356,7 @@ function rowLyrics(row: RowBuild, infos: readonly LyricLineInfo[] | undefined): 
             (l.lineIndex === undefined || l.lineIndex === lineIdx),
         );
         const syl: LyricSyllable = { text: hit?.text ?? "", source: info.sources?.[a] ?? hit?.source ?? ZERO };
+        if (hit?.syllabic) syl.syllabic = hit.syllabic;
         if (hit?.trailingPunctuation) syl.trailingPunctuation = hit.trailingPunctuation;
         syllables.push(syl);
       }
@@ -385,6 +386,7 @@ function rowLyrics(row: RowBuild, infos: readonly LyricLineInfo[] | undefined): 
       const hit = (a.lyrics ?? []).find((l) => v >= l.number && v <= (l.numberTo ?? l.number));
       if (hit?.verseLabel !== undefined) label = hit.verseLabel;
       const syl: LyricSyllable = { text: hit?.text ?? "", source: hit?.source ?? ZERO };
+      if (hit?.syllabic) syl.syllabic = hit.syllabic;
       if (hit?.trailingPunctuation) syl.trailingPunctuation = hit.trailingPunctuation;
       syllables.push(syl);
     }

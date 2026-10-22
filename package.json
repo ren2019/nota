@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "setup": "npm --prefix app ci --no-audit --no-fund",
+    "setup": "npm --prefix app ci --ignore-scripts --no-audit --no-fund",
     "dev": "npm --prefix app run dev -- --host 127.0.0.1 --port 5173",
     "build": "npm --prefix app run build",
     "preview": "npm --prefix app run preview -- --host 127.0.0.1 --port 5173",
@@ -15,6 +15,13 @@
     "test:omr": "node app/scripts/check-omr.mjs",
     "score:search": "node scripts/search-scores.mjs",
     "test:editor": "node app/scripts/check-editor-browser.mjs",
-    "test:journeys": "node app/scripts/check-app-journeys.mjs"
-  }
+    "test:journeys": "node app/scripts/check-app-journeys.mjs",
+    "setup:omr-native": "npm --prefix app rebuild onnxruntime-node --ignore-scripts=false",
+    "release:web": "node scripts/package-web.mjs"
+  },
+  "engines": {
+    "node": ">=24 <25",
+    "npm": ">=10 <11"
+  },
+  "packageManager": "npm@10.9.9"
 }

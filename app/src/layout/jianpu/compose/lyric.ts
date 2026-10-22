@@ -1,7 +1,7 @@
 // 歌词：音节、标点挤压、歌词联合括号与注记。
 import { Font } from "../../font";
 import { Group, Lyric } from "../../pageitem";
-import { syllableRun } from "../../../engrave/syllable";
+import { lyricSyllableText, syllableRun } from "../../../engrave/syllable";
 import type { PlacedItem, PlacedVoice } from "../place/model";
 import { type OriginalCtx, text } from "./ctx";
 import { braceItem } from "./brace";
@@ -72,7 +72,7 @@ export function paintLyricAnnotations(c: OriginalCtx, root: Group, voice: Placed
     let x0: number;
     if (first) {
       const syl = first.syllables[verse]!;
-      const run = syllableRun(syl.text + (syl.trailingPunctuation ?? ""), lyricFont, m.style.look.punctCompress);
+      const run = syllableRun(lyricSyllableText(syl), lyricFont, m.style.look.punctCompress);
       x0 = left + first.x - run.lead - run.body / 2;
     } else {
       const syl = line.syllables.find((x) => x?.text);
@@ -94,7 +94,7 @@ export function paintSyllables(c: OriginalCtx,
   const font = new Font(m.style.font.lyric.family, m.style.size.lyric);
   it.syllables.forEach((syl, verse) => {
     if (!syl) return;
-    const str = syl.text + (syl.trailingPunctuation ?? "");
+    const str = lyricSyllableText(syl);
     const g = new Group();
     g.data = syl;
     // 音节按其**主体**居中于音符锚点，前后标点挂出去；量宽与笔位同一串挤压后的坐标（engrave/syllable.ts，`Lyric.update` 同一份）

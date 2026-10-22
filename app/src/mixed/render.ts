@@ -811,7 +811,7 @@ export function harmonyWidthOf(score: StaffLayout, h: HarmonyLayout): number {
   const eng = score.options;
   const fontsz = eng.harmonySize / (score.scaling > 0 ? score.scaling : 0.45);
   const segs = eng.chordPlain ? chordTextSegs(h.asPlainText(eng.accidentalSide), true, eng.accidentalSide) : h.asText(eng.accidentalSide);
-  return harmonyWidth(segs, new Font(eng.wordFont, fontsz), new Font("Bravura Text", fontsz));
+  return harmonyWidth(segs, new Font(eng.wordFont, fontsz), new Font("Nota Chord Symbols", fontsz));
 }
 
 export function drawHarmony(
@@ -825,9 +825,9 @@ export function drawHarmony(
   const fontsz = eng.harmonySize / (scaling > 0 ? scaling : 0.45);
   const wordFont = new Font(eng.wordFont, fontsz);
   // SMuFL csym 字形（升降号/和弦质量）。musicpp（render.cpp:541）明确使用同字号的
-  // "Bravura Text"。不能拿 Bravura 乘一个统一比例代替：两款字体的 csym 升降号等大，
+  // "Nota Chord Symbols"。不能拿 Bravura 乘一个统一比例代替：两款字体的 csym 升降号等大，
   // diminished/augmented 等质量字形却不是同一比例；只有实际 Text 字体能逐字形对齐。
-  const musicFont = new Font("Bravura Text", fontsz);
+  const musicFont = new Font("Nota Chord Symbols", fontsz);
   // 整小节休止的混排小节，offset==0 的和弦标记右移 15（render.cpp:504-515）。
   const measureRest =
     mixed && data.chords.length === 1 && data.chords[0].measureRest;

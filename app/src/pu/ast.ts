@@ -211,6 +211,8 @@ export interface Mark {
 }
 
 export interface LyricSyllable {
+  /** 词内音节连接，来自 ScoreDoc 的歌词语义。 */
+  syllabic?: "single" | "begin" | "middle" | "end";
   /** 空串表示「跳过一个音符」（`@` 或有谱的 `/`） */
   text: string;
   /** 跟在字后的标点，排版时不占音符位 */

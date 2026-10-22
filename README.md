@@ -32,7 +32,7 @@ PDF、PNG、PPTX 共用导出页脚：来源占第一层，品牌靠左、日期
 
 ## 本地运行
 
-安装 Node.js/npm 后，在仓库根目录执行：
+使用 Node.js 24 LTS（验证版本 24.22.1）和 npm 10（验证版本 10.9.9）。可使用 `.nvmrc` 选择 Node；Node 26 暂不列入支持范围。如果 Node 自带的 npm 为 11，可先在任意目录执行 `npm install --global npm@10.9.9`，再用 `node --version` / `npm --version` 确认版本。在仓库根目录执行：
 
 ```sh
 npm run setup
@@ -48,6 +48,8 @@ npm run preview
 ```
 
 `preview` 默认监听本机 5173，同时提供页面与服务端 API。曲谱保存到服务主机的 `local/library/`，识谱项目连同原图保存；该目录不纳入 Git，需单独备份。初始曲谱与幂等种子导入见[曲谱来源](docs/library-seed.md)。
+
+默认安装使用 `--ignore-scripts`，不执行依赖生命周期脚本；Web 构建、识谱和关键测试使用此安装方式验证。Node 侧原生 OMR 命令行工具是可选开发能力，确有需要时运行 `npm run setup:omr-native`，它仅重建 `onnxruntime-node`（可能联网下载原生运行库），与浏览器 Web 识谱分别验收。
 
 ## 自行部署与手机 Web App
 
@@ -75,4 +77,8 @@ Nota 本身不建设账号、成员角色或多空间。部署者可在入口使
 
 ## 开源许可
 
+本轮发行仅支持自行部署的 Web 应用；`app/src-tauri/` 保留上游参考代码，桌面包暂不发布，也未通过 Nota 原生构建验收。已知原生依赖问题见[发布范围](docs/release-scope.md)。
+
 Nota 采用 [MIT 许可证](LICENSE)。Dolce 的版权、[MIT 许可及第三方资源许可](app/LICENSE)保留，来源见 [app/UPSTREAM.md](app/UPSTREAM.md)。真实曲谱、原图与导出件不属于项目代码许可的授权范围，统一放入被忽略的 `local/`。
+
+第三方模型、字体和音源的来源、修改与许可见 [资源清单](app/THIRD_PARTY_ASSETS.md)。Web 源码发行使用 `npm run release:web`，仅收录允许的源码和公开资源；生成包位于被忽略的 `local/releases/`。

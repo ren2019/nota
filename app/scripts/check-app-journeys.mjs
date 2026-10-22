@@ -128,6 +128,42 @@ ${e.stack}`);
   }
 }
 try {
+  await test("English lyric syllables render connecting hyphens without changing source", async (page) => {
+    const text="X:1\nT:Syllables\nM:4/4\nL:1/4\nK:C\nC D E F |]\nw: it-sy spi-der\n";
+    const item=(await api("","POST",{title:"Syllables",format:"abc",text})).body;
+    await opened(page,item);
+    await page.waitForFunction(()=>document.getElementById("app")?.dataset.notaScreen === "detail");
+    await page.locator("#score-pane svg").first().waitFor({state:"visible"});
+    const hyphens=page.locator('#score-pane svg text').filter({hasText:/^(it|spi)-$/});
+    assert.equal(await hyphens.count(),2,"both word-internal breaks must have a printed hyphen");
+    assert.equal((await doc(page)).text,text);
+    assert.equal((await api(`/${item.id}`, "DELETE", {revision:item.revision})).status,200);
+  });
+  await test("reopen current song fetches remote lyrics without restarting", async (page) => {
+    const original = "X:1\nT:Remote lyrics\nM:4/4\nL:1/4\nK:C\nC D E F |]\n";
+    const item = (await api("", "POST", {title:"Remote lyrics",text:original,format:"abc",key:"1=C",meter:"4/4"})).body;
+    await opened(page,item);
+    await page.evaluate(() => window.__app.whenIdle());
+    await home(page);
+    const updated = original + "w: It sy spi der\n";
+    assert.equal((await api(`/${item.id}`,"PUT",{...item,text:updated,revision:item.revision})).status,200);
+    await page.getByRole("button",{name:`打开 ${item.title}`,exact:true}).click();
+    await page.evaluate(() => window.__app.whenIdle());
+    await page.waitForFunction(() => document.getElementById("app")?.dataset.notaScreen === "detail");
+    assert.equal((await doc(page)).text,updated,"reopening must load the latest saved lyrics");
+    assert.ok(await page.locator("#score-pane svg").count(),"score surface exists");
+    await page.locator("#score-pane svg").first().waitFor({state:"visible"});
+    assert.match(await page.locator("#score-pane").innerText(), /spi/, "lyrics are rendered on the score");
+    for(let i=0;i<3;i++) {
+      await home(page);
+      await page.getByRole("button",{name:`打开 ${item.title}`,exact:true}).click();
+      await page.waitForFunction(() => document.getElementById("app")?.dataset.notaScreen === "detail");
+      await page.locator("#score-pane svg").first().waitFor({state:"visible"});
+      assert.match(await page.locator("#score-pane").innerText(), /spi/);
+    }
+    const latest=(await api(`/${item.id}`)).body;
+    assert.equal((await api(`/${item.id}`, "DELETE", {revision:latest.revision})).status,200);
+  });
   await test("empty library and loading failure are real visible states with a working refresh", async (page) => {
     assert.equal((await api()).body.length, 0);
     await page.route("**/api/library", (route) => route.fulfill({ status: 503, json: { error: "曲谱库加载不可用" } }));

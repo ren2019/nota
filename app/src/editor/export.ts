@@ -81,11 +81,11 @@ async function svgToBytes(svg: SVGSVGElement, scale: number, bg = "#fff"): Promi
   const style = document.createElementNS(SVG_NS, "style");
   const [bravura, bravuraText] = await Promise.all([
     musicFontDataUrl("Bravura.woff2"),
-    musicFontDataUrl("BravuraText.otf"),
+    musicFontDataUrl("NotaChordSymbols.otf"),
   ]);
   style.textContent =
     `@font-face{font-family:"Bravura";src:url("${bravura}") format("woff2");}` +
-    `@font-face{font-family:"Bravura Text";src:url("${bravuraText}") format("opentype");}`;
+    `@font-face{font-family:"Nota Chord Symbols";src:url("${bravuraText}") format("opentype");}`;
   clone.insertBefore(style, clone.firstChild);
 
   const svgText = new XMLSerializer().serializeToString(clone);

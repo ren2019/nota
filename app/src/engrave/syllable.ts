@@ -56,3 +56,9 @@ export function latinWordBreak(prev: string, next: string): boolean {
   if (!prev || !next || prev.endsWith("-")) return false;
   return /^[A-Za-zÀ-ɏ]/.test(next) || /[A-Za-zÀ-ɏ0-9][,.;:!?'")]*$/.test(prev);
 }
+
+/** Display word-internal lyric breaks without altering the editable syllable text. */
+export function lyricSyllableText(syl: { text: string; trailingPunctuation?: string; syllabic?: string }): string {
+  const hyphen = syl.syllabic === "begin" || syl.syllabic === "middle";
+  return syl.text + (hyphen ? "-" : "") + (syl.trailingPunctuation ?? "");
+}
