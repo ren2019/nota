@@ -4,6 +4,7 @@ import { isIP } from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { authorizeToolRequest } from "./tool-access.mjs";
+import { checkSubmission } from "./submission-runtime.mjs";
 
 const FORMATS = new Set(["123", "jpwabc", "pu", "abc", "musicxml", "jly", "jcx"]);
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -43,8 +44,10 @@ export function libraryMiddleware(directory = defaultDirectory) {
       const host = new URL(`http://${req.headers.host ?? ""}`).hostname.toLowerCase();
       if (host !== "localhost" && !isIP(host.replace(/^\[|\]$/g, "")) && !allowedHosts.includes(host)) throw fail(403, "请通过已配置的 Nota 地址访问曲谱库。");
       const match = /^\/api\/library(?:\/([^/]+))?\/?$/.exec(url.pathname);
-      if (!match || (match[1] && !ID.test(match[1]))) throw fail(404, "未找到曲谱。");
-      const id = match[1];
+      if (!match || (match[1] && match[1] !== "check" && !ID.test(match[1]))) throw fail(404, "未找到曲谱。");
+      const checking = match[1] === "check";
+      const id = checking ? undefined : match[1];
+      if (checking && req.method !== "POST") throw fail(405, "检查只接受 POST。");
       if (req.method === "GET") {
         if (id) return send(200, await load(id));
         let names;
@@ -85,9 +88,28 @@ export function libraryMiddleware(directory = defaultDirectory) {
           (data.project !== undefined && (typeof data.project !== "string" || !/^[A-Za-z0-9+/]*={0,2}$/.test(data.project)))) {
         throw fail(400, "请填写曲名，并提供有效的曲谱内容。");
       }
+      const report = await checkSubmission(data);
+      if (checking) return send(report.ok ? 200 : 422, report);
+      if (!report.ok) throw Object.assign(fail(422, "谱文未通过服务端检查，未保存。"), { code: "validation", data: report });
       const saved = await serialize(async () => {
         const previous = id ? await load(id) : null;
         if (previous && data.revision !== previous.revision) throw fail(409, "其他人刚刚更新了这份曲谱，请重新打开，或另存一份。");
+        let submission = previous?.submission;
+        if (!id && machine) {
+          if (data.requestId !== undefined && !ID.test(data.requestId)) throw fail(400, "创建请求编号无效。");
+          let names;
+          try { names = await readdir(directory); } catch (e) { if (e.code !== "ENOENT") throw e; names = []; }
+          const existing = await Promise.all(names.filter(n => n.endsWith(".json") && ID.test(n.slice(0, -5))).map(n => load(n.slice(0, -5))));
+          const requestHash = createHash("sha256").update(JSON.stringify({title:data.title,format:data.format,text:data.text,key:data.key,meter:data.meter,project:data.project,source:data.source,presentation:data.presentation})).digest("hex");
+          const repeated = data.requestId && existing.find(r => r.submission?.requestId === data.requestId);
+          if (repeated) {
+            if (repeated.submission.hash !== requestHash) throw fail(409, "创建请求编号已用于不同内容，未保存。");
+            return summary(repeated);
+          }
+          const candidates = existing.filter(r => !r.deletedAt && r.title.toLocaleLowerCase() === data.title.trim().toLocaleLowerCase()).map(summary);
+          if (candidates.length && data.allowDuplicateTitle !== true) throw Object.assign(fail(409, "存在同名曲谱，请明确修改已有曲谱还是另建版本。"), {code:"ambiguous",data:{candidates}});
+          submission = data.requestId ? { requestId: data.requestId, hash: requestHash } : undefined;
+        }
         const now = new Date().toISOString();
         const record = {
           id: id ?? randomUUID(), title: data.title.trim(), format: data.format, text: data.text,
@@ -95,6 +117,7 @@ export function libraryMiddleware(directory = defaultDirectory) {
           meter: typeof data.meter === "string" ? data.meter.slice(0, 24) : "",
           createdAt: previous?.createdAt ?? now, updatedAt: now, revision: (previous?.revision ?? 0) + 1,
           ...(data.project ? { project: data.project } : {}),
+          ...(submission ? { submission } : {}),
           ...(data.source && typeof data.source === "object" ? { source: {
             ...Object.fromEntries(["url", "license", "sha256", "importedAt", "validation", "method", "scope", "part", "importedTextHash"].map(k => [k, String(data.source[k] ?? "").slice(0, 2048)])),
             edited: createHash("sha256").update(data.text).digest("hex") !== data.source.importedTextHash,
@@ -109,7 +132,7 @@ export function libraryMiddleware(directory = defaultDirectory) {
       });
       send(id ? 200 : 201, saved);
     } catch (e) {
-      send(e.status ?? 500, { error: e.status ? e.message : "暂时无法读写曲谱库，请检查 Nota 服务后重试。", ...(e.code === "unauthorized" ? { code: e.code } : {}) });
+      send(e.status ?? 500, { error: e.status ? e.message : "暂时无法读写曲谱库，请检查 Nota 服务后重试。", ...(e.code ? { code: e.code } : {}), ...(e.data ? { data: e.data } : {}) });
     }
   };
 }

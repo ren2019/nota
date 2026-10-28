@@ -37,7 +37,7 @@ async function request(config, suffix = '', init = {}) {
   const code = statusCode === 401 || statusCode === 403 ? 'unauthorized' : statusCode === 404 ? 'not_found' : statusCode === 409 ? 'conflict' : statusCode === 400 || statusCode === 415 || statusCode === 422 ? 'validation' : 'server';
   let value;
   try { value = await response.json(); } catch { throw fail(response.ok ? 'server' : code, '实例未返回曲谱库 JSON；请检查机器入口和网关配置。'); }
-  if (!response.ok) throw fail(code, typeof value.error === 'string' ? value.error : 'Nota 拒绝了请求。');
+  if (!response.ok) throw fail(value.code === 'ambiguous' ? 'ambiguous' : code, typeof value.error === 'string' ? value.error : 'Nota 拒绝了请求。', value.data ?? value);
   return value;
 }
 
@@ -45,7 +45,7 @@ async function main() {
   const [command, ...args] = process.argv.slice(2);
   if (command === '--version' || command === 'version') return output({ ok: true, status: 'version', data: { version: JSON.parse(await readFile(new URL('./package.json', import.meta.url), 'utf8')).version } });
   if (!command || command === '--help' || command === 'help') return output({ ok: true, status: 'help', data: {
-    commands: ['config --url https://nota.example.com [--token-stdin]', 'list', 'find <曲名>', 'get <曲谱唯一编号>'],
+    commands: ['config --url https://nota.example.com [--token-stdin]', 'list', 'find <曲名>', 'get <曲谱唯一编号>', 'check --file <JSON文件>', 'create --file <JSON文件> [--allow-duplicate-title]'],
     configuration: '凭据通过 NOTA_TOKEN 环境变量或 --token-stdin 配置；NOTA_CONFIG 可指定私有配置文件，默认 ~/.config/nota-library/config.json。',
     exits,
   } });
@@ -65,6 +65,40 @@ async function main() {
     await writeFile(temporary, JSON.stringify({ url, token }) + '\n', { mode: 0o600, flag: 'wx' });
     await rename(temporary, configFile);
     return output({ ok: true, status: 'configured' });
+  }
+  if (command === 'check' || command === 'create') {
+    const at = args.indexOf('--file');
+    if (at < 0 || !args[at + 1] || args.some((arg, i) => i !== at + 1 && !['--file', ...(command === 'create' ? ['--allow-duplicate-title'] : [])].includes(arg))) throw fail('usage', `${command} --file <JSON文件>${command === 'create' ? ' [--allow-duplicate-title]' : ''}`);
+    let payload;
+    try { payload = JSON.parse(await readFile(args[at + 1], 'utf8')); } catch { throw fail('usage', '无法读取提案 JSON 文件。'); }
+    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw fail('usage', '提案必须是 JSON 对象。');
+    const config = await configuration();
+    const post = value => ({ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(value) });
+    const report = await request(config, '/check', post(payload));
+    if (command === 'check') return output({ ok: true, status: 'checked', data: report });
+    const requestId = randomUUID();
+    payload = { ...payload, requestId, allowDuplicateTitle: args.includes('--allow-duplicate-title') };
+    let saved;
+    try { saved = await request(config, '', post(payload)); }
+    catch (error) {
+      if (!['connection', 'server'].includes(error.code)) throw error;
+      // A lost write response is never permission to POST again. Reconcile this request, then read it.
+      try {
+        const candidates = await request(config);
+        saved = Array.isArray(candidates) && candidates.find(item => item.submission?.requestId === requestId);
+      } catch { /* Unknown outcome remains unknown. */ }
+      if (!saved) throw fail('result_unconfirmed', '新建结果未确认；待提交文件已保留。请先查找并核实，勿重复新建。', { requestId, file: args[at + 1] });
+    }
+    let record;
+    try { record = await request(config, `/${saved.id}`); }
+    catch { throw fail('result_unconfirmed', '服务已返回保存结果，但回读未确认。请按编号核实，勿重复新建。', { id: saved.id, revision: saved.revision, requestId, file: args[at + 1] }); }
+    const expected = { title: payload.title?.trim(), format: payload.format, text: payload.text, key: payload.key ?? '', meter: payload.meter ?? '' };
+    const contentMatches = Object.entries(expected).every(([key, value]) => record[key] === value)
+      && (payload.project ?? undefined) === record.project
+      && JSON.stringify(payload.presentation) === JSON.stringify(record.presentation)
+      && (!payload.source || ['url','license','sha256','importedAt','validation','method','scope','part','importedTextHash'].every(key => String(payload.source[key] ?? '').slice(0,2048) === record.source?.[key]));
+    if (saved.revision !== 1 || record.id !== saved.id || record.revision !== saved.revision || record.submission?.requestId !== requestId || !contentMatches) throw fail('result_unconfirmed', '回读内容或版本与本次保存不同；请核对实际状态，勿覆盖或重复新建。', { id: saved.id, revision: saved.revision, actualRevision: record.revision, requestId, file: args[at + 1] });
+    return output({ ok: true, status: 'created', data: { record, url: `${config.url}/?song=${encodeURIComponent(record.id)}&screen=detail`, check: report, summary: `已新建并回读「${record.title}」，修订版本 ${record.revision}。` } });
   }
   if (!['list', 'find', 'get'].includes(command)) throw fail('usage', '未知命令；运行 --help 查看用法。');
   if (command === 'get' && (args.length !== 1 || !/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(args[0]))) throw fail('usage', 'get 需要一个有效的曲谱唯一编号。');

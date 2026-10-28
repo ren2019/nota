@@ -2,7 +2,7 @@
 import { build } from 'esbuild';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { libraryMiddleware } from '../server/library.mjs';
@@ -68,8 +68,12 @@ try {
 
   await assert.rejects(readLibraryScore('invalid-id', endpoint), /不存在|找到|无效/);
   assert.equal((await (await fetch(endpoint)).json()).length,2);
-  const broken = await (await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...payload,title:'损坏恢复稿',project:'AAAA'})})).json();
-  await assert.rejects(readLibraryScore(broken.id,endpoint), /原图项目暂时无法恢复/);
+  const brokenResponse = await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...payload,title:'损坏恢复稿',project:'AAAA'})});
+  assert.equal(brokenResponse.status,422,'server rejects corrupt projects before saving');
+  // Existing damaged records remain possible after an upgrade; seed that historical state directly.
+  const brokenId='12345678-1234-1234-1234-123456789abc';
+  await writeFile(`${directory}/${brokenId}.json`,JSON.stringify({...opened.score,id:brokenId,title:'旧损坏记录',project:'AAAA'}));
+  await assert.rejects(readLibraryScore(brokenId,endpoint), /原图项目暂时无法恢复/);
   // Older seeded records added a source comment outside the original-image project.
   const annotatedText='% 来源：人工校对的练习版\n'+text;
   const annotated=await writeLibraryScore({...payload,title:'带来源注释的旧记录',text:annotatedText},null,endpoint);
@@ -77,10 +81,8 @@ try {
   assert.equal(annotatedRecord.score.text,annotatedText);
   assert.equal(unpackProject(annotatedRecord.project).text,text,'restore the original project before applying the source comment so its selection ranges can migrate');
   assert.deepEqual(unpackProject(annotatedRecord.project).sources,unpackProject(project).sources);
-  const mismatched=await writeLibraryScore({...payload,title:'音符不一致',text:text.replace('1 2 3 4','7 2 3 4')},null,endpoint);
-  await assert.rejects(readLibraryScore(mismatched.id,endpoint), /原图项目暂时无法恢复/,'actual musical changes must still be rejected');
-  const directive=await writeLibraryScore({...payload,title:'排版指令不一致',text:'%%pagewidth 200\n'+text},null,endpoint);
-  await assert.rejects(readLibraryScore(directive.id,endpoint), /原图项目暂时无法恢复/,'double-percent directives are not source comments');
+  await assert.rejects(writeLibraryScore({...payload,title:'音符不一致',text:text.replace('1 2 3 4','7 2 3 4')},null,endpoint),error => error.status === 422,'server rejects mismatched music before writing');
+  await assert.rejects(writeLibraryScore({...payload,title:'排版指令不一致',text:'%%pagewidth 200\n'+text},null,endpoint),error => error.status === 422,'layout directives are not source comments');
   const committed=(await readLibraryScore(saved.id,endpoint)).score;
   const renamed=await renameLibraryScore(updated,'保留我的副本',endpoint);
   assert.equal(renamed.id,saved.id);assert.equal(renamed.revision,3);

@@ -29,6 +29,27 @@ nota-library get 12345678-1234-1234-1234-123456789abc
 
 `find` 返回所有匹配候选及各自唯一编号、修订版本、更新时间、来源等摘要，不自动挑选同名曲谱。`get` 返回完整记录，包括谱文、来源、排版及原图项目。机器入口是 `/api/agent/library`；不能用浏览器 Cookie 代替工具凭据。
 
+## 检查并新建
+
+准备一份 UTF-8 JSON 提案，必填 `title`（曲谱库名称）、`format`（谱文格式）和 `text`（完整谱文）；可带 `key`、`meter`、`source`、`presentation` 和真实 `project`。提案与曲谱、凭据一样保存在私有位置。歌词可选，已有歌词不应为通过检查擅自删除。
+
+```sh
+nota-library check --file /path/to/proposal.json
+nota-library create --file /path/to/proposal.json
+```
+
+`check` 请求运行服务检查，不写库。首版服务端复用底座的 123、ABC、JCX、PU、jianpu-ly、JPWABC 和 MusicXML 原生解析器及小节时值规则；无法可靠解析、未解决的解析诊断、没有可用旋律或拍数错误会阻止写入。报告给出源码位置、小节及实际/预期拍数。原图项目须可恢复且与谱文、格式一致。合法弱起、连音与变拍遵循底座规则，不自动补音、删音或改变拍号。
+
+`create` 先取得服务端检查报告；最终 POST 的实际内容仍会重新检查，不能用旧报告跳过检查。曲名相同时返回 `ambiguous` 和候选编号。agent 应先询问是修改已有曲谱，还是有意另建版本；只有后一种得到明确意图后才使用：
+
+```sh
+nota-library create --file /path/to/proposal.json --allow-duplicate-title
+```
+
+成功状态为 `created`，`data` 包含回读核对过的完整 `record`、可打开的 `url`、本次 `check` 范围和 `summary`。这表示已保存并回读，不能声称已经逐音对照原稿或由人试听。人随后在曲谱库查看、试听；试听不阻塞保存，也不创建待审状态。
+
+CLI 为每次新建生成请求编号；创建响应丢失时，只尝试查找该编号并回读，不自动重复 POST。仍无法确认或回读版本/内容不符时退出 8，返回 `result_unconfirmed`、请求编号及可用的曲谱编号，保留原提案文件。先按编号查找核实，不能因连接失败就盲目重复新建。
+
 ## 结果契约
 
 每次命令输出一行 JSON；不会等待人工交互。
@@ -61,4 +82,4 @@ node scripts/tool-credentials.mjs revoke --file local/private/tool-credentials.j
 
 ## 可重跑验证
 
-仓库维护者执行 `node --test cli/test/installed.test.mjs`。测试会打包并在源码之外的临时目录真实安装 CLI，连接真实 HTTP 服务及隔离持久化，检查授权读取、同名候选、完整数据回读、凭据撤销及网页保护。测试数据是明确的合成 fixture，不代表《Five Little Ducks》真实曲谱验收；真实曲谱和部署证据另存于私有 `local/`。
+仓库维护者执行 `node --test cli/test/*.test.mjs`。测试会打包并在源码之外的临时目录真实安装 CLI，连接真实 HTTP 服务及隔离持久化，检查授权读取、同名候选、完整数据回读、凭据撤销、网页保护、服务端最终检查、合法音乐结构与创建响应丢失。测试数据是明确的合成 fixture，不代表《Five Little Ducks》真实曲谱验收；真实曲谱和部署证据另存于私有 `local/`。
