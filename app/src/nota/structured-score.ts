@@ -38,21 +38,26 @@ export function scoreReference(doc: ScoreDoc): ScoreReference {
     part = song.parts[0];
   let key = song.key ?? { fifths: 0 },
     carry = new AccidentalCarry(),
+    graceCarry: AccidentalCarry | undefined,
     divisions = 48;
   const positions = new Map<number, { start: string; end: string }>();
   const result: ScoreReference = {
     events: part.measures.map((m, i) => {
       if (m.attrs?.key) key = m.attrs.key;
       if (m.attrs?.divisions) divisions = m.attrs.divisions;
-      if (!continuesMeasure(part.measures[i - 1], m))
+      if (!continuesMeasure(part.measures[i - 1], m)) {
         carry = new AccidentalCarry();
+        graceCarry = undefined;
+      }
       let at = 0;
       return m.elements.flatMap((e) => {
         if (e.kind !== "chord") return [];
         if (e.notes.length > 1 || e.voice > 1)
           throw new Error("请选取单旋律声部；暂不自动提取和弦或重叠声部。");
         const n = e.notes[0];
-        const p = n?.pitch ?? (n?.degree ? carry.pitch(n.degree, key) : null);
+        if (!e.grace) graceCarry = undefined;
+        const activeCarry = e.grace ? graceCarry ??= carry.fork() : carry;
+        const p = n?.pitch ?? (n?.degree ? activeCarry.pitch(n.degree, key) : null);
         // MusicXML divisions already include tuplets; the 123 model uses nominal duration.
         const factor =
           doc.sourceFormat !== "musicxml" && e.duration.timeMod

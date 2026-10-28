@@ -386,7 +386,30 @@ try {
     assert.equal(await dialog(page).count(), 0);
     assert.equal(await page.locator("#library-list button").count(), count - 1);
   });
-  await test("remote deletion yields recoverable 404 for rename/delete without recreating a record", async (page) => {
+  await test("deleted scores remain discoverable after reload and restore their identity from the web", async (page) => {
+    const item = await seed("网页恢复曲谱");
+    await opened(page, item);
+    await more(page, "从库中删除");
+    assert.match(await dialog(page).textContent(), /已删除曲谱.*恢复/);
+    await choose(page, "从库中删除");
+    await page.locator("#start-screen").waitFor({ state: "visible" });
+    await page.reload();
+    await page.locator("#library-deleted").click();
+    await dialog(page).getByText(item.title, { exact: true }).waitFor();
+    await page.screenshot({ path: `${evidence}/deleted-library.png` });
+    await dialog(page).getByRole("button", { name: `恢复 ${item.title}`, exact: true }).click();
+    await dialog(page).getByText(/已恢复/).waitFor();
+    await choose(page, "关闭");
+    await page.getByRole("button", { name: `打开 ${item.title}`, exact: true }).click();
+    await page.locator("#nota-document-title").getByText(item.title, { exact: true }).waitFor();
+    assert.equal(new URL(page.url()).searchParams.get("song"), item.id);
+    assert.equal((await doc(page)).text, item.text);
+    const restored = (await api(`/${item.id}`)).body;
+    assert.equal(restored.revision, item.revision + 2);
+    assert.equal(restored.text, item.text);
+    await page.screenshot({ path: `${evidence}/restored-library-score.png` });
+  });
+  await test("remote deletion yields recoverable not-found/conflict without recreating a record", async (page) => {
     const item = await seed("远端删除对象");
     await opened(page, item);
     await api(`/${item.id}`, "DELETE", { revision: item.revision });
@@ -398,7 +421,7 @@ try {
     assert.equal((await doc(page)).text, item.text);
     await more(page, "从库中删除");
     await choose(page, "从库中删除");
-    await dialog(page).getByRole("alert").getByText(/不存在/).waitFor();
+    await dialog(page).getByRole("alert").getByText(/其他人|已删除/).waitFor();
     await choose(page, "取消");
     assert.equal((await api(`/${item.id}`)).status, 404);
     assert.equal((await doc(page)).text, item.text);
@@ -591,24 +614,43 @@ try {
     assert.equal(recognized.hasInputs, true);
     await writeFile(`${evidence}/recognition-observation.json`, JSON.stringify({ rawText: recognized.text, referenceText: item.text, accuracy: "not accepted; UI correction is a separate step" }, null, 2));
     await page.screenshot({ path: `${evidence}/recognized-image.png` });
+    const originalSources = await page.evaluate(() => window.__app.omr.snapshot().sources.map((s) => ({ name: s.name, bytes: Array.from(s.bytes) })));
+    const beforeRejectedSave = (await api()).body.map((record) => record.id).sort();
+    const rejection = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/library" && response.request().method() === "POST");
+    await save(page);
+    await dialog(page).getByRole("textbox").fill("新图识别往返");
+    await choose(page, "保存");
+    assert.equal((await rejection).status(), 422, "unreviewed invalid OMR output must not enter the library");
+    await dialog(page).getByRole("alert").getByText(/未通过服务端检查/).waitFor();
+    assert.deepEqual(await doc(page), recognized, "a rejected save keeps the editable recognition draft");
+    assert.deepEqual((await api()).body.map((record) => record.id).sort(), beforeRejectedSave);
+    assert.deepEqual(await page.evaluate(() => window.__app.omr.snapshot().sources.map((s) => ({ name: s.name, bytes: Array.from(s.bytes) }))), originalSources);
+    await choose(page, "关闭");
+    // Correct the actual recognition draft through the same visible editor a person uses.
+    await editor(page);
+    await edit(page, item.text);
+    await detail(page);
     await save(page);
     await dialog(page).getByRole("textbox").fill("新图识别往返");
     await choose(page, "保存");
     await mode(page, "practice");
     const id = new URL(page.url()).searchParams.get("song");
+    assert.ok(id);
     const committed = (await api(`/${id}`)).body;
     assert.ok(committed.project);
-    assert.equal(committed.text, recognized.text);
+    assert.equal(committed.text, item.text);
+    assert.equal(committed.revision, 1);
     await page.reload();
     await page.locator("#nota-document-title").getByText("新图识别往返", { exact: true }).waitFor();
-    assert.equal((await doc(page)).text, recognized.text);
+    assert.equal((await doc(page)).text, item.text);
     await editor(page);
-    await edit(page, item.text);
+    await edit(page, item.text.replace("1 2 3 4", "3 2 3 4"));
     await detail(page);
     const corrected = await doc(page);
     await save(page);
     await mode(page, "practice");
     assert.equal(new URL(page.url()).searchParams.get("song"), id);
+    assert.equal((await api(`/${id}`)).body.revision, 2);
     await page.reload();
     await page.locator("#nota-document-title").getByText("新图识别往返", { exact: true }).waitFor();
     assert.equal((await doc(page)).text, corrected.text);
@@ -729,6 +771,32 @@ try {
     assert.equal((await doc(page)).text, changed);
     const observed = await page.evaluate(() => ({ visibility: document.visibilityState, events: window.__qaLifecycle }));
     await writeFile(`${evidence}/tab-lifecycle.json`, JSON.stringify({ beforeVisibility, duringVisibility, ...observed, scope: "browser tab switch only; not iOS OS suspension, lockscreen, calls, or process termination" }, null, 2));
+  });
+  await test("source labels distinguish recorded provenance from compared originals", async (page) => {
+    const text = score("来源范围");
+    const hash = createHash("sha256").update(text).digest("hex");
+    let compared;
+    for (const [title, validation, edited] of [["已对照来源", "source-compared", false], ["转写来源", "agent-visually-transcribed", false], ["改动后来源", "source-compared", true]]) {
+      const source = {url:"https://example.org/source",license:"Synthetic fixture",validation,importedTextHash:edited ? "outdated" : hash};
+      const result = await api("", "POST", {title,text,format:"123",source});
+      assert.equal(result.status,201);
+      if (validation === "source-compared" && !edited) compared = result.body;
+    }
+    await page.goto(`${base}/?lang=zh`);
+    await page.getByRole("button", {name:"打开 转写来源",exact:true}).waitFor();
+    assert.match(await page.getByRole("button", {name:"打开 已对照来源",exact:true}).innerText(), /导入时对照通过/);
+    assert.match(await page.getByRole("button", {name:"打开 转写来源",exact:true}).innerText(), /未验证原稿/);
+    assert.match(await page.getByRole("button", {name:"打开 改动后来源",exact:true}).innerText(), /需重新核对/);
+    assert.equal((await api(`/${compared.id}`,"PUT",{revision:compared.revision,source:{url:"https://example.org/unverified-replacement"}})).status,200);
+    await page.locator("#library-refresh").click();
+    const changed = page.getByRole("button", {name:"打开 已对照来源",exact:true});
+    await changed.getByText(/未验证原稿/).waitFor();
+    assert.doesNotMatch(await changed.innerText(),/导入时对照通过/);
+    const saved = (await api(`/${compared.id}`)).body;
+    assert.equal(saved.text,text);
+    assert.equal(saved.source.license,"Synthetic fixture");
+    assert.equal(saved.source.validation,"source-unverified");
+    await page.screenshot({path:`${evidence}/source-validation-scope.png`});
   });
   if (!executedCases) {
     scope = "no-match";

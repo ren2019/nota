@@ -99,3 +99,23 @@ npm run score:prepare -- --id usa --out local/usa.nota-score.json
 候选支持 `--url HTTPS文件链接 --title 曲名 --license 逐曲许可说明 --format abc|musicxml --part 0`（MusicXML 声部序号从 0 起）；多声部 ABC 还需 `--voice 1`。目前只接受已允许的 MIT、Gutenberg、OpenScore/GitHub、Mutopia HTTPS 来源，LilyPond 本身未接转换。原图识谱不使用这些来源服务。
 
 服务重新取得来源文件、核对哈希和候选谱文后才允许打开；保存到曲谱库仍需用户明确操作。原始下载保存在 `local/source-imports/`，可连同曲谱库备份。
+
+## agent 的独立机器入口
+
+曲谱库 CLI 使用 `/api/agent/library` 及其子路径，Nota 对每次请求校验 Bearer 工具凭据。部署者通过 `NOTA_TOOL_CREDENTIALS_FILE` 指定私有哈希凭据文件；发放、撤销和 CLI 安装见 [客户端说明](../cli/README.md)。该变量不可指向 Web 静态资源目录；常驻 macOS 服务可在执行 `npm run deploy:mac` 时传入绝对路径，脚本会写入本机 LaunchAgent。
+
+有网页登录网关时，必须将这一路径单独匹配，保留 `Authorization` 并转发到同一个 Nota 服务，由 Nota 验证工具凭据。只免除这条机器路径的浏览器会话要求，不把整个 `/api/` 放行；既有页面、`/api/library`、`/api/score-sources` 及其他入口继续沿用原保护。不要信任调用者自报身份头，不要使用仅检查 Host/Origin 的规则代替凭据。机器凭据只授权曲谱库入口，不授予页面登录。
+
+以下是 Caddy 的路径示例，须放在现有登录保护规则之前；其余网页登录规则保留原配置：
+
+```caddyfile
+@nota_agent path /api/agent/library /api/agent/library/*
+handle @nota_agent {
+    reverse_proxy 127.0.0.1:5173
+}
+# 既有网页登录保护与其他代理规则继续放在后续 handle 中。
+```
+
+若原代理统一剥离 `Authorization`，这条机器转发必须取消该剥离；不要给请求注入任何有效工具凭据。保持原 Host，HTTPS 在入口终止，服务主机上游不得通过另一个未经保护的公网地址暴露网页曲谱库。凭据文件每次请求重新加载，撤销无需重启；无配置、错误凭据、撤销或无法读取配置时均返回 JSON 401。
+
+在实际 HTTPS 入口至少检查：有效凭据能列出并读取；没有、错误及已撤销凭据均返回 401；撤销甲不影响乙；工具凭据不能替代网页会话；未登录网页仍受保护。CLI 不跟随重定向，也不会把成功 HTML 登录页当作曲谱数据。仓库内隔离 HTTP 测试只能证明应用行为，实际网关适配的通过结果应另存在部署者的私有证据中。

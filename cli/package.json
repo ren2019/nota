@@ -1,0 +1,10 @@
+{
+  "name": "@nota/cli",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Nota 共享曲谱库的独立 agent 客户端",
+  "license": "MIT",
+  "bin": { "nota-library": "main.mjs" },
+  "engines": { "node": ">=24 <25" },
+  "files": ["main.mjs", "source-provenance.mjs", "README.md", "LICENSE"]
+}
