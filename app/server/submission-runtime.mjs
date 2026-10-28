@@ -14,7 +14,7 @@ export function submissionRuntime() {
   })().catch(error => { pending = undefined; throw error; });
 }
 
-export async function checkSubmission(input) {
+export async function checkSubmission(input, options) {
   // Reject malformed XML before the editor's intentionally tolerant reader sees it.
   if (input?.format === 'musicxml' && typeof input.text === 'string') {
     try {
@@ -23,5 +23,5 @@ export async function checkSubmission(input) {
       if (xml.documentElement?.localName !== 'score-partwise') throw new Error();
     } catch { return { ok: false, diagnostics: [{ severity: 'error', code: 'xml', message: '请提供格式完整、不含自定义实体的 score-partwise MusicXML。' }] }; }
   }
-  return (await submissionRuntime()).checkSubmission(input);
+  return (await submissionRuntime()).checkSubmission(input, options);
 }

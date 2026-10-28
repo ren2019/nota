@@ -753,6 +753,21 @@ try {
     const observed = await page.evaluate(() => ({ visibility: document.visibilityState, events: window.__qaLifecycle }));
     await writeFile(`${evidence}/tab-lifecycle.json`, JSON.stringify({ beforeVisibility, duringVisibility, ...observed, scope: "browser tab switch only; not iOS OS suspension, lockscreen, calls, or process termination" }, null, 2));
   });
+  await test("source labels distinguish recorded provenance from compared originals", async (page) => {
+    const text = score("来源范围");
+    const hash = createHash("sha256").update(text).digest("hex");
+    for (const [title, validation, edited] of [["已对照来源", "source-compared", false], ["转写来源", "agent-visually-transcribed", false], ["改动后来源", "source-compared", true]]) {
+      const source = {url:"https://example.org/source",license:"Synthetic fixture",validation,importedTextHash:edited ? "outdated" : hash};
+      const result = await api("", "POST", {title,text,format:"123",source});
+      assert.equal(result.status,201);
+    }
+    await page.goto(`${base}/?lang=zh`);
+    await page.getByRole("button", {name:"打开 转写来源",exact:true}).waitFor();
+    assert.match(await page.getByRole("button", {name:"打开 已对照来源",exact:true}).innerText(), /导入时对照通过/);
+    assert.match(await page.getByRole("button", {name:"打开 转写来源",exact:true}).innerText(), /未验证原稿/);
+    assert.match(await page.getByRole("button", {name:"打开 改动后来源",exact:true}).innerText(), /需重新核对/);
+    await page.screenshot({path:`${evidence}/source-validation-scope.png`});
+  });
   if (!executedCases) {
     scope = "no-match";
     throw new Error(`NOTA_JOURNEY_FILTER matched no cases: ${filter}`);

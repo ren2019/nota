@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { readFile, mkdir, writeFile, rename } from 'node:fs/promises';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
@@ -66,11 +66,32 @@ async function changeDeletionState(config, command, id, revision) {
   return output({ ok: true, status: restoring ? 'restored' : 'deleted', data: { ...after, url: `${config.url}/?screen=detail&song=${id}` } });
 }
 
+function expectedUpdate(before, proposal) {
+  const mergeObject = (previous, patch) => {
+    const base = previous && typeof previous === 'object' && !Array.isArray(previous) ? previous : {};
+    return { ...base, ...Object.fromEntries(Object.entries(patch).map(([key, value]) => [key,
+      value && typeof value === 'object' && !Array.isArray(value) ? mergeObject(base[key], value) : value])) };
+  };
+  const result = { ...before };
+  for (const key of ['title','format','text','key','meter','project','source','presentation']) if (Object.hasOwn(proposal, key)) {
+    result[key] = ['source','presentation'].includes(key) ? mergeObject(before[key], proposal[key]) : proposal[key];
+  }
+  result.title = result.title.trim();
+  result.key = typeof result.key === 'string' ? result.key.slice(0,24) : '';
+  result.meter = typeof result.meter === 'string' ? result.meter.slice(0,24) : '';
+  if (result.source) {
+    result.source = { ...result.source };
+    for (const key of ['url','license','sha256','importedAt','validation','method','scope','part','importedTextHash']) result.source[key] = String(result.source[key] ?? '').slice(0,2048);
+    result.source.edited = createHash('sha256').update(result.text).digest('hex') !== result.source.importedTextHash;
+  }
+  return result;
+}
+
 async function main() {
   const [command, ...args] = process.argv.slice(2);
   if (command === '--version' || command === 'version') return output({ ok: true, status: 'version', data: { version: JSON.parse(await readFile(new URL('./package.json', import.meta.url), 'utf8')).version } });
   if (!command || command === '--help' || command === 'help') return output({ ok: true, status: 'help', data: {
-    commands: ['config --url https://nota.example.com [--token-stdin]', 'list', 'find <曲名>', 'get <曲谱唯一编号>', 'check --file <JSON文件>', 'create --file <JSON文件> [--allow-duplicate-title]', 'deleted', 'delete <曲谱唯一编号> --revision <版本>', 'restore <曲谱唯一编号> --revision <版本>'],
+    commands: ['config --url https://nota.example.com [--token-stdin]', 'list', 'find <曲名>', 'get <曲谱唯一编号>', 'check --file <JSON文件>', 'check <曲谱唯一编号> --revision <版本> --file <JSON文件>', 'create --file <JSON文件> [--allow-duplicate-title]', 'update <曲谱唯一编号> --revision <版本> --file <JSON文件>', 'deleted', 'delete <曲谱唯一编号> --revision <版本>', 'restore <曲谱唯一编号> --revision <版本>'],
     configuration: '凭据通过 NOTA_TOKEN 环境变量或 --token-stdin 配置；NOTA_CONFIG 可指定私有配置文件，默认 ~/.config/nota-library/config.json。',
     exits,
   } });
@@ -90,6 +111,29 @@ async function main() {
     await writeFile(temporary, JSON.stringify({ url, token }) + '\n', { mode: 0o600, flag: 'wx' });
     await rename(temporary, configFile);
     return output({ ok: true, status: 'configured' });
+  }
+  if (command === 'update' || (command === 'check' && args[0] && !args[0].startsWith('--'))) {
+    if (args.length !== 5 || !/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(args[0]) || args[1] !== '--revision' || !/^[1-9][0-9]*$/.test(args[2]) || !Number.isSafeInteger(Number(args[2])) || args[3] !== '--file') throw fail('usage', `${command} <曲谱编号> --revision <版本> --file <JSON文件>`);
+    const [id, , revisionText, , file] = args, revision = Number(revisionText);
+    let proposal;
+    try { proposal = JSON.parse(await readFile(file, 'utf8')); } catch { throw fail('usage', '无法读取提案 JSON 文件。'); }
+    if (!proposal || typeof proposal !== 'object' || Array.isArray(proposal)) throw fail('usage', '提案必须是 JSON 对象。');
+    const config = await configuration(), before = await request(config, `/${id}`);
+    if (before.id !== id || before.revision !== revision) throw fail('conflict', '曲谱版本已变化；待提交文件已保留，请重新读取后核对。', { id, expectedRevision: revision, actualRevision: before.revision, file });
+    const payload = { ...proposal, revision };
+    const json = (method, value) => ({ method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(value) });
+    const report = await request(config, `/${id}/check`, json('POST', payload));
+    if (command === 'check') return output({ ok: true, status: 'checked', data: report });
+    let saved;
+    try { saved = await request(config, `/${id}`, json('PUT', payload)); }
+    catch (error) { if (!['connection','server'].includes(error.code)) throw error; }
+    let record;
+    try { record = await request(config, `/${id}`); }
+    catch { throw fail('result_unconfirmed', '更新结果尚未核实；待提交文件已保留，请按编号回读，不要自动重试。', { id, expectedRevision: revision + 1, file }); }
+    const expected = expectedUpdate(before, proposal);
+    const retained = value => { const { revision: _revision, updatedAt: _updatedAt, ...content } = value; return content; };
+    if ((saved && saved.revision !== revision + 1) || record.revision !== revision + 1 || !isDeepStrictEqual(retained(record), retained(expected))) throw fail('result_unconfirmed', '回读版本或内容不等于本次更新，可能已有后续修改；待提交文件已保留，请核对实际状态。', { id, expectedRevision: revision + 1, actualRevision: record.revision, file });
+    return output({ ok: true, status: 'updated', data: { record, url: `${config.url}/?song=${encodeURIComponent(id)}&screen=detail`, check: saved?.check ?? report, summary: `已更新并回读「${record.title}」，修订版本 ${record.revision}。` } });
   }
   if (command === 'check' || command === 'create') {
     const at = args.indexOf('--file');

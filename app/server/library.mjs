@@ -13,6 +13,22 @@ const defaultDirectory = fileURLToPath(new URL("../../local/library/", import.me
 
 function fail(status, message) { return Object.assign(new Error(message), { status }); }
 const summary = ({ text: _text, project: _project, presentation: _presentation, ...metadata }) => metadata;
+const CONTENT_FIELDS = ['title', 'format', 'text', 'key', 'meter', 'project', 'source', 'presentation'];
+function mergeObject(previous, patch) {
+  const base = previous && typeof previous === 'object' && !Array.isArray(previous) ? previous : {};
+  return { ...base, ...Object.fromEntries(Object.entries(patch).map(([key, value]) => [key,
+    value && typeof value === 'object' && !Array.isArray(value) ? mergeObject(base[key], value) : value])) };
+}
+function mergeContent(previous, proposal) {
+  const merged = { ...previous };
+  for (const key of CONTENT_FIELDS) if (Object.hasOwn(proposal, key)) {
+    if (['source', 'presentation'].includes(key)) {
+      if (!proposal[key] || typeof proposal[key] !== 'object' || Array.isArray(proposal[key])) throw fail(400, `${key} 必须是对象；未修改现有内容。`);
+      merged[key] = mergeObject(previous?.[key], proposal[key]);
+    } else merged[key] = proposal[key];
+  }
+  return merged;
+}
 
 /** Shared by Vite dev and preview. Scores live on the Nota host, not in a browser. */
 export function libraryMiddleware(directory = defaultDirectory) {
@@ -54,12 +70,14 @@ export function libraryMiddleware(directory = defaultDirectory) {
       }
       const host = new URL(`http://${req.headers.host ?? ""}`).hostname.toLowerCase();
       if (host !== "localhost" && !isIP(host.replace(/^\[|\]$/g, "")) && !allowedHosts.includes(host)) throw fail(403, "请通过已配置的 Nota 地址访问曲谱库。");
-      const checking = /^\/api\/library\/check\/?$/.test(url.pathname);
-      const match = /^\/api\/library(?:\/(deleted))?(?:\/([^/]+))?(?:\/(restore))?\/?$/.exec(checking ? "/api/library" : url.pathname);
+      let checking = /^\/api\/library\/check\/?$/.test(url.pathname);
+      const match = /^\/api\/library(?:\/(deleted))?(?:\/([^/]+))?(?:\/(restore|check))?\/?$/.exec(checking ? "/api/library" : url.pathname);
       if (!match || (match[2] && !ID.test(match[2])) || (match[3] && (!match[2] || match[1]))) throw fail(404, "未找到曲谱。");
       const deletedRoute = !!match[1];
       const id = match[2];
       const restoring = !!match[3];
+      checking ||= match[3] === 'check';
+      const restoreOperation = match[3] === 'restore';
       if (checking && req.method !== "POST") throw fail(405, "检查只接受 POST。");
       if (req.method === "GET") {
         if (restoring) throw fail(405, "不支持此操作。");
@@ -93,32 +111,34 @@ export function libraryMiddleware(directory = defaultDirectory) {
       let data;
       try { data = JSON.parse(Buffer.concat(chunks).toString("utf8")); }
       catch { throw fail(400, "保存内容格式不正确。"); }
-      if (req.method === "DELETE" || restoring) {
+      if (req.method === "DELETE" || restoreOperation) {
         if (!Number.isSafeInteger(data?.revision) || data.revision < 1) throw fail(400, "请提供有效的曲谱修订版本。");
         const deleted = await serialize(async () => {
           const previous = await load(id);
           if (data.revision !== previous.revision) throw fail(409, "其他人刚刚更新了这份曲谱，本次操作尚未完成。请重新读取后确认。");
-          if (restoring ? !previous.deletedAt : previous.deletedAt) throw fail(409, restoring ? "这份曲谱已经恢复。请刷新曲谱库。" : "这份曲谱已经删除。可从已删除曲谱中恢复。");
+          if (restoreOperation ? !previous.deletedAt : previous.deletedAt) throw fail(409, restoreOperation ? "这份曲谱已经恢复。请刷新曲谱库。" : "这份曲谱已经删除。可从已删除曲谱中恢复。");
           const now = new Date().toISOString();
           const record = { ...previous, revision: previous.revision + 1, updatedAt: now };
-          if (restoring) delete record.deletedAt;
+          if (restoreOperation) delete record.deletedAt;
           else record.deletedAt = now;
           await persist(record);
-          return { ...summary(record), deleted: !restoring };
+          return { ...summary(record), deleted: !restoreOperation };
         });
         return send(200, deleted);
       }
-      if (!data || typeof data.title !== "string" || !data.title.trim() || data.title.trim().length > 120 ||
-          !FORMATS.has(data.format) || typeof data.text !== "string" || !data.text.trim() ||
-          (data.project !== undefined && (typeof data.project !== "string" || !/^[A-Za-z0-9+/]*={0,2}$/.test(data.project)))) {
-        throw fail(400, "请填写曲名，并提供有效的曲谱内容。");
-      }
-      const report = await checkSubmission(data);
-      if (checking) return send(report.ok ? 200 : 422, report);
-      if (!report.ok) throw Object.assign(fail(422, "谱文未通过服务端检查，未保存。"), { code: "validation", data: report });
+      if (!data || typeof data !== 'object' || Array.isArray(data)) throw fail(400, "请提供曲谱内容对象。");
       const saved = await serialize(async () => {
         const previous = id ? await loadActive(id) : null;
-        if (previous && data.revision !== previous.revision) throw fail(409, "其他人刚刚更新了这份曲谱，请重新打开，或另存一份。");
+        if (previous && data.revision !== previous.revision) throw fail(409, "其他人刚刚更新了这份曲谱，请重新读取后核对；待提交内容尚未保存。");
+        if (previous?.project && machine) throw Object.assign(fail(422, "这份曲谱带原图项目，远程同步尚未接通；原记录已保留。"), {code:'validation',data:{diagnostics:[{severity:'error',code:'project_update_unsupported',message:'原图项目需先安全同步映射，不能剥除原图保存。'}]}});
+        const candidate = previous ? mergeContent(previous, data) : data;
+        if (typeof candidate.title !== "string" || !candidate.title.trim() || candidate.title.trim().length > 120 ||
+            !FORMATS.has(candidate.format) || typeof candidate.text !== "string" || !candidate.text.trim() ||
+            (candidate.project !== undefined && (typeof candidate.project !== "string" || !/^[A-Za-z0-9+/]*={0,2}$/.test(candidate.project)))) throw fail(400, "请填写曲名，并提供有效的曲谱内容。");
+        const report = await checkSubmission(candidate, { previous, intent: data.intent });
+        if (previous) report.fieldsChanged = CONTENT_FIELDS.filter(key => JSON.stringify(previous[key]) !== JSON.stringify(candidate[key]));
+        if (checking) return { report };
+        if (!report.ok) throw Object.assign(fail(422, "谱文未通过服务端检查，未保存。"), { code: "validation", data: report });
         let submission = previous?.submission;
         if (!id && machine) {
           if (data.requestId !== undefined && !ID.test(data.requestId)) throw fail(400, "创建请求编号无效。");
@@ -129,7 +149,7 @@ export function libraryMiddleware(directory = defaultDirectory) {
           const repeated = data.requestId && existing.find(r => r.submission?.requestId === data.requestId);
           if (repeated) {
             if (repeated.submission.hash !== requestHash) throw fail(409, "创建请求编号已用于不同内容，未保存。");
-            return summary(repeated);
+            return { record: summary(repeated), report };
           }
           const candidates = existing.filter(r => !r.deletedAt && r.title.toLocaleLowerCase() === data.title.trim().toLocaleLowerCase()).map(summary);
           if (candidates.length && data.allowDuplicateTitle !== true) throw Object.assign(fail(409, "存在同名曲谱，请明确修改已有曲谱还是另建版本。"), {code:"ambiguous",data:{candidates}});
@@ -137,22 +157,25 @@ export function libraryMiddleware(directory = defaultDirectory) {
         }
         const now = new Date().toISOString();
         const record = {
-          id: id ?? randomUUID(), title: data.title.trim(), format: data.format, text: data.text,
-          key: typeof data.key === "string" ? data.key.slice(0, 24) : "",
-          meter: typeof data.meter === "string" ? data.meter.slice(0, 24) : "",
+          ...previous,
+          id: id ?? randomUUID(), title: candidate.title.trim(), format: candidate.format, text: candidate.text,
+          key: typeof candidate.key === "string" ? candidate.key.slice(0, 24) : "",
+          meter: typeof candidate.meter === "string" ? candidate.meter.slice(0, 24) : "",
           createdAt: previous?.createdAt ?? now, updatedAt: now, revision: (previous?.revision ?? 0) + 1,
-          ...(data.project ? { project: data.project } : {}),
+          ...(candidate.project ? { project: candidate.project } : {}),
           ...(submission ? { submission } : {}),
-          ...(data.source && typeof data.source === "object" ? { source: {
-            ...Object.fromEntries(["url", "license", "sha256", "importedAt", "validation", "method", "scope", "part", "importedTextHash"].map(k => [k, String(data.source[k] ?? "").slice(0, 2048)])),
-            edited: createHash("sha256").update(data.text).digest("hex") !== data.source.importedTextHash,
+          ...(candidate.source && typeof candidate.source === "object" ? { source: {
+            ...candidate.source,
+            ...Object.fromEntries(["url", "license", "sha256", "importedAt", "validation", "method", "scope", "part", "importedTextHash"].map(k => [k, String(candidate.source[k] ?? "").slice(0, 2048)])),
+            edited: createHash("sha256").update(candidate.text).digest("hex") !== candidate.source.importedTextHash,
           }} : {}),
-          ...(data.presentation && typeof data.presentation === "object" ? { presentation: data.presentation } : {}),
+          ...(candidate.presentation && typeof candidate.presentation === "object" ? { presentation: candidate.presentation } : {}),
         };
         await persist(record);
-        return summary(record);
+        return { record: summary(record), report };
       });
-      send(id ? 200 : 201, saved);
+      if (checking) return send(saved.report.ok ? 200 : 422, saved.report);
+      send(id ? 200 : 201, { ...saved.record, ...(id && machine ? { check: saved.report } : {}) });
     } catch (e) {
       send(e.status ?? 500, { error: e.status ? e.message : "暂时无法读写曲谱库，请检查 Nota 服务后重试。", ...(e.code ? { code: e.code } : {}), ...(e.data ? { data: e.data } : {}) });
     }

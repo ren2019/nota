@@ -587,6 +587,7 @@
   "cli/package.json",
   "cli/test/create.test.mjs",
   "cli/test/installed.test.mjs",
+  "cli/test/update.test.mjs",
   "docs/README.md",
   "docs/acceptance.md",
   "docs/acceptance/current-release.md",

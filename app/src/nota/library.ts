@@ -1,5 +1,5 @@
 import { onLangChange, t } from '../i18n';
-import { provenanceFooterSource } from "./score-footer-source";
+import { provenanceFooterSource, provenanceStatus } from "./score-footer-source";
 import type { App } from "../editor/app";
 import { showConfirmDialog, showFormDialog, showUnsavedLibraryDialog, openModal } from "../editor/dialogs";
 import { keyLabel } from "./convert";
@@ -59,7 +59,7 @@ export function mountLibrary(app: App, revealWorkspace: (mode?: "practice" | "ed
       const title = document.createElement("strong");
       title.textContent = item.title;
       const details = document.createElement("span");
-      details.textContent = [item.key, item.meter, item.format === "musicxml" ? t("nota.ia.staffNotation") : t("nota.ia.jianpu"), item.source ? (item.source.edited ? t("nota.ia.onlineImportEdited") : t("nota.ia.onlineImportComparedOnImport")) : ""].filter(Boolean).join(" · ");
+      details.textContent = [item.key, item.meter, item.format === "musicxml" ? t("nota.ia.staffNotation") : t("nota.ia.jianpu"), provenanceStatus(item.source)].filter(Boolean).join(" · ");
       copy.append(title, details);
       const time = document.createElement("time");
       time.dateTime = item.updatedAt;

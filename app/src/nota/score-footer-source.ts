@@ -2,6 +2,7 @@ import type { ScoreDoc, Song } from "../model/doc";
 import { cloneWithSurface } from "../model/xmlsurface";
 import { getMeta } from "../model/metakeys";
 import type { SourceProvenance } from "./source-import";
+import { t } from '../i18n';
 
 // Exact compatibility for the verified historical version/source description.
 // It remains in the editable original; ordinary subtitles are never inferred.
@@ -17,6 +18,13 @@ export function scoreFooterSource(song: Song | undefined): string {
 
 export function provenanceFooterSource(source: SourceProvenance | undefined): string {
   return source ? [source.url, source.license].filter(Boolean).join(" · ") : "";
+}
+
+/** A source URL is provenance, not proof that the current score matches it. */
+export function provenanceStatus(source: SourceProvenance | undefined): string {
+  if (!source) return '';
+  if (source.edited) return t('nota.ia.onlineImportEdited');
+  return source.validation === 'source-compared' ? t('nota.ia.onlineImportComparedOnImport') : t('nota.ia.sourceRecordedUnverified');
 }
 
 /** Display-only projection. Keeps music, source offsets and raw source intact. */
