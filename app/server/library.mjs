@@ -3,6 +3,7 @@ import { randomUUID, createHash } from "node:crypto";
 import { isIP } from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { authorizeToolRequest } from "./tool-access.mjs";
 
 const FORMATS = new Set(["123", "jpwabc", "pu", "abc", "musicxml", "jly", "jcx"]);
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -28,12 +29,17 @@ export function libraryMiddleware(directory = defaultDirectory) {
   };
   return async (req, res, next) => {
     const url = new URL(req.url ?? "/", "http://nota.local");
-    if (!url.pathname.startsWith("/api/library")) return next();
+    const machine = url.pathname === "/api/agent/library" || url.pathname.startsWith("/api/agent/library/");
+    if (!machine && !url.pathname.startsWith("/api/library")) return next();
     const send = (status, value) => {
       res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" });
       res.end(JSON.stringify(value));
     };
     try {
+      if (machine) {
+        await authorizeToolRequest(req);
+        url.pathname = url.pathname.replace("/api/agent/library", "/api/library");
+      }
       const host = new URL(`http://${req.headers.host ?? ""}`).hostname.toLowerCase();
       if (host !== "localhost" && !isIP(host.replace(/^\[|\]$/g, "")) && !allowedHosts.includes(host)) throw fail(403, "请通过已配置的 Nota 地址访问曲谱库。");
       const match = /^\/api\/library(?:\/([^/]+))?\/?$/.exec(url.pathname);
@@ -103,7 +109,7 @@ export function libraryMiddleware(directory = defaultDirectory) {
       });
       send(id ? 200 : 201, saved);
     } catch (e) {
-      send(e.status ?? 500, { error: e.status ? e.message : "暂时无法读写曲谱库，请检查 Nota 服务后重试。" });
+      send(e.status ?? 500, { error: e.status ? e.message : "暂时无法读写曲谱库，请检查 Nota 服务后重试。", ...(e.code === "unauthorized" ? { code: e.code } : {}) });
     }
   };
 }

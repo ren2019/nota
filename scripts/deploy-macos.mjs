@@ -33,6 +33,7 @@ writeFileSync(plist, `<?xml version="1.0" encoding="UTF-8"?>
 <key>EnvironmentVariables</key><dict>
 <key>PATH</key><string>${xml(path.dirname(process.execPath))}:/usr/bin:/bin:/usr/sbin:/sbin</string>
 <key>NOTA_ALLOWED_HOSTS</key><string>${xml(allowedHosts)}</string>
+${process.env.NOTA_TOOL_CREDENTIALS_FILE ? `<key>NOTA_TOOL_CREDENTIALS_FILE</key><string>${xml(path.resolve(process.env.NOTA_TOOL_CREDENTIALS_FILE))}</string>` : ""}
 </dict>
 <key>RunAtLoad</key><true/>
 <key>KeepAlive</key><true/>

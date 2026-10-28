@@ -8,7 +8,7 @@
     "build": "npm --prefix app run build",
     "preview": "npm --prefix app run preview -- --host 127.0.0.1 --port 5173",
     "deploy:mac": "node scripts/deploy-macos.mjs",
-    "test": "node app/scripts/nota-check.mjs && node app/scripts/check-playback.mjs && node --test app/server/library.test.mjs app/server/score-import.test.mjs && node app/scripts/check-document-session.mjs && node app/scripts/check-input.mjs",
+    "test": "node app/scripts/nota-check.mjs && node app/scripts/check-playback.mjs && node --test app/server/library.test.mjs app/server/score-import.test.mjs cli/test/installed.test.mjs && node app/scripts/check-document-session.mjs && node app/scripts/check-input.mjs",
     "seed:library": "node scripts/seed-library.mjs",
     "score:prepare": "node scripts/prepare-score.mjs",
     "score:setup": "uv run --with music21==10.5.0 python -c \"import music21; print(music21.__version__)\"",
