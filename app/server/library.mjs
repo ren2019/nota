@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { authorizeToolRequest } from "./tool-access.mjs";
 import { checkSubmission, synchronizeProject } from "./submission-runtime.mjs";
+import { normalizeSourceProvenance } from "../../cli/source-provenance.mjs";
 
 const FORMATS = new Set(["123", "jpwabc", "pu", "abc", "musicxml", "jly", "jcx"]);
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -75,12 +76,12 @@ export function libraryMiddleware(directory = defaultDirectory) {
       if (!match || (match[2] && !ID.test(match[2])) || (match[3] && (!match[2] || match[1]))) throw fail(404, "未找到曲谱。");
       const deletedRoute = !!match[1];
       const id = match[2];
-      const restoring = !!match[3];
+      const hasOperationRoute = !!match[3];
       checking ||= match[3] === 'check';
       const restoreOperation = match[3] === 'restore';
       if (checking && req.method !== "POST") throw fail(405, "检查只接受 POST。");
       if (req.method === "GET") {
-        if (restoring) throw fail(405, "不支持此操作。");
+        if (hasOperationRoute) throw fail(405, "不支持此操作。");
         if (id) {
           const record = await load(id);
           if (!!record.deletedAt !== deletedRoute) throw fail(404, "这份曲谱不存在或已删除，可在已删除曲谱中恢复。");
@@ -97,8 +98,8 @@ export function libraryMiddleware(directory = defaultDirectory) {
         return send(200, records.filter(record => record && !!record.deletedAt === deletedRoute).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
       }
       if (deletedRoute) throw fail(405, "不支持此操作。");
-      if (restoring && req.method !== "POST") throw fail(405, "不支持此操作。");
-      if (!restoring && (req.method !== "POST" || id) && (req.method !== "PUT" || !id) && (req.method !== "DELETE" || !id)) throw fail(405, "不支持此操作。");
+      if (hasOperationRoute && req.method !== "POST") throw fail(405, "不支持此操作。");
+      if (!hasOperationRoute && (req.method !== "POST" || id) && (req.method !== "PUT" || !id) && (req.method !== "DELETE" || !id)) throw fail(405, "不支持此操作。");
       if (!req.headers["content-type"]?.startsWith("application/json")) throw fail(415, "保存内容格式不正确。");
       if (req.headers.origin && new URL(req.headers.origin).host !== req.headers.host) throw fail(403, "请从 Nota 页面保存曲谱。");
       let size = 0;
@@ -143,6 +144,7 @@ export function libraryMiddleware(directory = defaultDirectory) {
         if (typeof candidate.title !== "string" || !candidate.title.trim() || candidate.title.trim().length > 120 ||
             !FORMATS.has(candidate.format) || typeof candidate.text !== "string" || !candidate.text.trim() ||
             (candidate.project !== undefined && (typeof candidate.project !== "string" || !/^[A-Za-z0-9+/]*={0,2}$/.test(candidate.project)))) throw fail(400, "请填写曲名，并提供有效的曲谱内容。");
+        if (candidate.source && typeof candidate.source === 'object') candidate.source = normalizeSourceProvenance(candidate.source, candidate.text, previous?.source);
         const report = await checkSubmission(candidate, { previous, intent: data.intent });
         if (projectUpdate) report.projectUpdate = projectUpdate;
         if (previous) report.fieldsChanged = CONTENT_FIELDS.filter(key => JSON.stringify(previous[key]) !== JSON.stringify(candidate[key]));
@@ -173,11 +175,7 @@ export function libraryMiddleware(directory = defaultDirectory) {
           createdAt: previous?.createdAt ?? now, updatedAt: now, revision: (previous?.revision ?? 0) + 1,
           ...(candidate.project ? { project: candidate.project } : {}),
           ...(submission ? { submission } : {}),
-          ...(candidate.source && typeof candidate.source === "object" ? { source: {
-            ...candidate.source,
-            ...Object.fromEntries(["url", "license", "sha256", "importedAt", "validation", "method", "scope", "part", "importedTextHash"].map(k => [k, String(candidate.source[k] ?? "").slice(0, 2048)])),
-            edited: createHash("sha256").update(candidate.text).digest("hex") !== candidate.source.importedTextHash,
-          }} : {}),
+          ...(candidate.source && typeof candidate.source === "object" ? { source: candidate.source } : {}),
           ...(candidate.presentation && typeof candidate.presentation === "object" ? { presentation: candidate.presentation } : {}),
         };
         await persist(record);

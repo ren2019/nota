@@ -72,6 +72,62 @@ test('安装的CLI按编号和版本预检、局部纠错及回读，保留歌�
   assert.equal(conflict.code,6);assert.equal((await(await raw(`/${record.id}`)).json()).title,'新曲名');
 });
 
+test('安装的CLI替换来源后撤销旧对照结论，普通更名仍保留原来源结论',async t=>{
+  const{run,raw,record}=await fixture(t);
+  assert.equal(record.source.validation,'source-compared');
+  assert.equal(record.source.edited,false);
+  const renamed=await run(['update',record.id,'--revision','1','--file','proposal.json'],{title:'只改库名'});
+  assert.equal(renamed.code,0,JSON.stringify(renamed.output));
+  assert.deepEqual(renamed.output.data.record.source,record.source);
+  const licensed=await run(['update',record.id,'--revision','2','--file','proposal.json'],{source:{license:'Synthetic fixture; attribution clarified'}});
+  assert.equal(licensed.code,0,JSON.stringify(licensed.output));
+  assert.equal(licensed.output.data.record.source.validation,'source-compared');
+  assert.equal(licensed.output.data.record.source.edited,false);
+  const updated=await run(['update',record.id,'--revision','3','--file','proposal.json'],{source:{url:'https://example.org/unverified-replacement'}});
+  assert.equal(updated.code,0,JSON.stringify(updated.output));
+  const saved=updated.output.data.record;
+  assert.equal(saved.source.validation,'source-unverified');
+  assert.equal(saved.source.edited,false,'谱文未改，不能以 edited 代替来源验证状态');
+  assert.equal(saved.source.url,'https://example.org/unverified-replacement');
+  assert.equal(saved.source.license,licensed.output.data.record.source.license);
+  assert.equal(saved.text,record.text);
+  assert.deepEqual(saved.presentation,record.presentation);
+  assert.deepEqual((await(await raw(`/${record.id}`)).json()).source,saved.source);
+});
+
+test('来源文件和选取范围变化不能沿用旧验证，直接网页PUT同样失效',async t=>{
+  const{run,raw}=await fixture(t);
+  const verified={...score.source,sha256:'a'.repeat(64),part:'1',scope:'完整单旋律',method:'synthetic comparison'};
+  for(const [name,sourcePatch] of [
+    ['文件指纹',{sha256:'b'.repeat(64)}],
+    ['声部',{part:'2'}],
+    ['选取范围',{scope:'第2至4小节'}],
+    ['对照方法',{method:'未独立验证的方法'}],
+    ['导入谱文指纹',{importedTextHash:'0'.repeat(64)}],
+  ]) {
+    const created=await raw('','POST',{...score,title:`来源变更${name}`,source:verified});
+    assert.equal(created.status,201);
+    const id=(await created.json()).id;
+    const before=await(await raw(`/${id}`)).json();
+    assert.equal(before.source.validation,'source-compared','新建时的可信导入结论应保留');
+    const result=await run(['update',id,'--revision','1','--file','proposal.json'],{source:sourcePatch});
+    assert.equal(result.code,0,JSON.stringify(result.output));
+    assert.equal(result.output.data.record.source.validation,'source-unverified',name);
+    assert.equal(result.output.data.record.source.license,score.source.license);
+    assert.equal(result.output.data.record.text,score.text);
+    assert.deepEqual(result.output.data.record.presentation,score.presentation);
+  }
+  const created=await raw('','POST',{...score,title:'网页直接更新来源',source:verified});
+  const id=(await created.json()).id;
+  const beforeResponse=await raw(`/${id}`);
+  const response=await fetch(beforeResponse.url.replace('/api/agent/library/','/api/library/'),{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({revision:1,source:{url:'https://example.org/direct-replacement'}})});
+  assert.equal(response.status,200);
+  const saved=await(await raw(`/${id}`)).json();
+  assert.equal(saved.source.validation,'source-unverified');
+  assert.equal(saved.source.license,score.source.license);
+  assert.equal(saved.text,score.text);
+});
+
 test('更新基于旧谱区分弱起与意外漏拍，直接PUT也不能绕过',async t=>{
   const{run,raw,record}=await fixture(t);
   const short={text:score.text.replace('(1 2) 0 4','(1 2) 0')};

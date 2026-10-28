@@ -587,6 +587,7 @@
   "cli/README.md",
   "cli/main.mjs",
   "cli/package.json",
+  "cli/source-provenance.mjs",
   "cli/test/create.test.mjs",
   "cli/test/delivery.test.mjs",
   "cli/test/installed.test.mjs",

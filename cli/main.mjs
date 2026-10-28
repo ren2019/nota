@@ -4,6 +4,7 @@ import { randomUUID, createHash } from 'node:crypto';
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
+import { normalizeSourceProvenance } from './source-provenance.mjs';
 
 const configFile = process.env.NOTA_CONFIG || path.join(homedir(), '.config/nota-library/config.json');
 const exits = { usage: 2, unauthorized: 3, connection: 4, not_found: 5, conflict: 6, validation: 7, result_unconfirmed: 8, ambiguous: 9, server: 10 };
@@ -79,11 +80,7 @@ function expectedUpdate(before, proposal) {
   result.title = result.title.trim();
   result.key = typeof result.key === 'string' ? result.key.slice(0,24) : '';
   result.meter = typeof result.meter === 'string' ? result.meter.slice(0,24) : '';
-  if (result.source) {
-    result.source = { ...result.source };
-    for (const key of ['url','license','sha256','importedAt','validation','method','scope','part','importedTextHash']) result.source[key] = String(result.source[key] ?? '').slice(0,2048);
-    result.source.edited = createHash('sha256').update(result.text).digest('hex') !== result.source.importedTextHash;
-  }
+  if (result.source) result.source = normalizeSourceProvenance(result.source, result.text, before.source);
   return result;
 }
 
@@ -169,7 +166,7 @@ async function main() {
     const contentMatches = Object.entries(expected).every(([key, value]) => record[key] === value)
       && (payload.project ?? undefined) === record.project
       && JSON.stringify(payload.presentation) === JSON.stringify(record.presentation)
-      && (!payload.source || ['url','license','sha256','importedAt','validation','method','scope','part','importedTextHash'].every(key => String(payload.source[key] ?? '').slice(0,2048) === record.source?.[key]));
+      && isDeepStrictEqual(normalizeSourceProvenance(payload.source, payload.text), record.source);
     if (saved.revision !== 1 || record.id !== saved.id || record.revision !== saved.revision || record.submission?.requestId !== requestId || !contentMatches) throw fail('result_unconfirmed', '回读内容或版本与本次保存不同；请核对实际状态，勿覆盖或重复新建。', { id: saved.id, revision: saved.revision, actualRevision: record.revision, requestId, file: args[at + 1] });
     return output({ ok: true, status: 'created', data: { record, url: `${config.url}/?song=${encodeURIComponent(record.id)}&screen=detail`, check: report, summary: `已新建并回读「${record.title}」，修订版本 ${record.revision}。` } });
   }

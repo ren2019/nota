@@ -6,5 +6,5 @@
   "license": "MIT",
   "bin": { "nota-library": "main.mjs" },
   "engines": { "node": ">=24 <25" },
-  "files": ["main.mjs", "README.md", "LICENSE"]
+  "files": ["main.mjs", "source-provenance.mjs", "README.md", "LICENSE"]
 }

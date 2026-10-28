@@ -775,16 +775,27 @@ try {
   await test("source labels distinguish recorded provenance from compared originals", async (page) => {
     const text = score("来源范围");
     const hash = createHash("sha256").update(text).digest("hex");
+    let compared;
     for (const [title, validation, edited] of [["已对照来源", "source-compared", false], ["转写来源", "agent-visually-transcribed", false], ["改动后来源", "source-compared", true]]) {
       const source = {url:"https://example.org/source",license:"Synthetic fixture",validation,importedTextHash:edited ? "outdated" : hash};
       const result = await api("", "POST", {title,text,format:"123",source});
       assert.equal(result.status,201);
+      if (validation === "source-compared" && !edited) compared = result.body;
     }
     await page.goto(`${base}/?lang=zh`);
     await page.getByRole("button", {name:"打开 转写来源",exact:true}).waitFor();
     assert.match(await page.getByRole("button", {name:"打开 已对照来源",exact:true}).innerText(), /导入时对照通过/);
     assert.match(await page.getByRole("button", {name:"打开 转写来源",exact:true}).innerText(), /未验证原稿/);
     assert.match(await page.getByRole("button", {name:"打开 改动后来源",exact:true}).innerText(), /需重新核对/);
+    assert.equal((await api(`/${compared.id}`,"PUT",{revision:compared.revision,source:{url:"https://example.org/unverified-replacement"}})).status,200);
+    await page.locator("#library-refresh").click();
+    const changed = page.getByRole("button", {name:"打开 已对照来源",exact:true});
+    await changed.getByText(/未验证原稿/).waitFor();
+    assert.doesNotMatch(await changed.innerText(),/导入时对照通过/);
+    const saved = (await api(`/${compared.id}`)).body;
+    assert.equal(saved.text,text);
+    assert.equal(saved.source.license,"Synthetic fixture");
+    assert.equal(saved.source.validation,"source-unverified");
     await page.screenshot({path:`${evidence}/source-validation-scope.png`});
   });
   if (!executedCases) {
