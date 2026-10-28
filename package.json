@@ -17,7 +17,8 @@
     "test:editor": "node app/scripts/check-editor-browser.mjs",
     "test:journeys": "node app/scripts/check-app-journeys.mjs",
     "setup:omr-native": "npm --prefix app rebuild onnxruntime-node --ignore-scripts=false",
-    "release:web": "node scripts/package-web.mjs"
+    "release:web": "node scripts/package-web.mjs",
+    "release:agent-tools": "node scripts/package-agent-tools.mjs"
   },
   "engines": {
     "node": ">=24 <25",

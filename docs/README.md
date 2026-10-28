@@ -31,3 +31,5 @@
 - [Dolce 来源与固定版本](../app/UPSTREAM.md)；`app/docs/` 保留上游实现资料，不代表 Nota 当前界面说明。
 
 Agent 协作入口在 [AGENTS.md](../AGENTS.md)，tracker、标签与领域文档规则位于 [agents/](agents/issue-tracker.md)。
+
+- [agent 曲谱库工具](agent-tools.md)：独立 CLI、SkillFlow/Codex skill 安装与协作边界。
