@@ -25,3 +25,7 @@ export async function checkSubmission(input, options) {
   }
   return (await submissionRuntime()).checkSubmission(input, options);
 }
+
+export async function synchronizeProject(previous, candidate, edits) {
+  return (await submissionRuntime()).synchronizeProject(previous, candidate, edits);
+}

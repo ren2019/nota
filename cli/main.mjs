@@ -131,6 +131,10 @@ async function main() {
     try { record = await request(config, `/${id}`); }
     catch { throw fail('result_unconfirmed', '更新结果尚未核实；待提交文件已保留，请按编号回读，不要自动重试。', { id, expectedRevision: revision + 1, file }); }
     const expected = expectedUpdate(before, proposal);
+    if (report.projectUpdate?.changed) {
+      if (typeof record.project !== 'string' || createHash('sha256').update(Buffer.from(record.project, 'base64')).digest('hex') !== report.projectUpdate.sha256) throw fail('result_unconfirmed', '回读的原图项目不等于本次检查准备的项目；待提交文件已保留，请核对实际状态。', { id, expectedRevision: revision + 1, file });
+      expected.project = record.project;
+    }
     const retained = value => { const { revision: _revision, updatedAt: _updatedAt, ...content } = value; return content; };
     if ((saved && saved.revision !== revision + 1) || record.revision !== revision + 1 || !isDeepStrictEqual(retained(record), retained(expected))) throw fail('result_unconfirmed', '回读版本或内容不等于本次更新，可能已有后续修改；待提交文件已保留，请核对实际状态。', { id, expectedRevision: revision + 1, actualRevision: record.revision, file });
     return output({ ok: true, status: 'updated', data: { record, url: `${config.url}/?song=${encodeURIComponent(id)}&screen=detail`, check: saved?.check ?? report, summary: `已更新并回读「${record.title}」，修订版本 ${record.revision}。` } });

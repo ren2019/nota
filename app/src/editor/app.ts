@@ -30,7 +30,7 @@ import { MetaData } from "../smufl/smufl";
 import type { FitMeasure } from "../pu/phrase";
 import { docView } from "../pu/slots";
 import { voiceNumbers } from "../pu/ast";
-import type { JpwMeta, JpwRange } from "../omrkit/types";
+import { mapOmrMeta } from "./omr-mapping";
 import { loadConverter, type HanDirection } from "../common/hanconv";
 import { convertScoreDoc, convertSourceText, detectHanDirection } from "../model/hanconv";
 import { isTauriRuntime } from "./fileio";
@@ -784,7 +784,7 @@ export class App implements OmrHost, PlaybackHost, FormatHost, FormatSwitchHost,
     const updateListener = EditorView.updateListener.of((u) => {
       if (u.docChanged) {
         // 识别映射随用户编辑迁移偏移，保持点选仍落在正确 token。
-        this.omr.remapMeta((m) => mapMeta(m, u.changes));
+        this.omr.remapMeta((m) => mapOmrMeta(m, u.changes));
         this.scheduleReload();
         this.files._scheduleDraft();
         this.documentStateChanged?.();
@@ -2832,21 +2832,6 @@ function isMultiPartXml(xml: string): boolean {
   } catch {
     return false;
   }
-}
-
-/** 把识别映射的所有代码区间经 CodeMirror 变更集迁移到新文档位置（保持编辑后点选仍准）。 */
-function mapMeta(meta: JpwMeta, ch: { mapPos(pos: number, assoc?: number): number }): JpwMeta {
-  const mr = (r: JpwRange): JpwRange => ({ from: ch.mapPos(r.from, 1), to: ch.mapPos(r.to, -1) });
-  return {
-    noteRanges: meta.noteRanges.map(mr),
-    lyricRanges: meta.lyricRanges.map((m) => {
-      const nm = new Map<number, JpwRange>();
-      for (const [k, v] of m) nm.set(k, mr(v));
-      return nm;
-    }),
-    titleRange: meta.titleRange ? mr(meta.titleRange) : undefined,
-    authorRanges: meta.authorRanges.map((a) => ({ text: a.text, range: mr(a.range) })),
-  };
 }
 
 /** 这份文档有没有可排的曲行（首曲至少一行）。 */

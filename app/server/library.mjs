@@ -4,7 +4,7 @@ import { isIP } from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { authorizeToolRequest } from "./tool-access.mjs";
-import { checkSubmission } from "./submission-runtime.mjs";
+import { checkSubmission, synchronizeProject } from "./submission-runtime.mjs";
 
 const FORMATS = new Set(["123", "jpwabc", "pu", "abc", "musicxml", "jly", "jcx"]);
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -130,12 +130,21 @@ export function libraryMiddleware(directory = defaultDirectory) {
       const saved = await serialize(async () => {
         const previous = id ? await loadActive(id) : null;
         if (previous && data.revision !== previous.revision) throw fail(409, "其他人刚刚更新了这份曲谱，请重新读取后核对；待提交内容尚未保存。");
-        if (previous?.project && machine) throw Object.assign(fail(422, "这份曲谱带原图项目，远程同步尚未接通；原记录已保留。"), {code:'validation',data:{diagnostics:[{severity:'error',code:'project_update_unsupported',message:'原图项目需先安全同步映射，不能剥除原图保存。'}]}});
         const candidate = previous ? mergeContent(previous, data) : data;
+        let projectUpdate;
+        if (previous?.project && machine) {
+          try {
+            candidate.project = await synchronizeProject(previous, candidate, data.edits);
+            projectUpdate = { changed: candidate.project !== previous.project, sha256: createHash('sha256').update(Buffer.from(candidate.project, 'base64')).digest('hex') };
+          } catch (error) {
+            throw Object.assign(fail(422, error.message), { code: 'validation', data: { diagnostics: [{ severity: 'error', code: error.code ?? 'project_mapping', message: error.message, ...(error.source ? { source: error.source } : {}) }] } });
+          }
+        }
         if (typeof candidate.title !== "string" || !candidate.title.trim() || candidate.title.trim().length > 120 ||
             !FORMATS.has(candidate.format) || typeof candidate.text !== "string" || !candidate.text.trim() ||
             (candidate.project !== undefined && (typeof candidate.project !== "string" || !/^[A-Za-z0-9+/]*={0,2}$/.test(candidate.project)))) throw fail(400, "请填写曲名，并提供有效的曲谱内容。");
         const report = await checkSubmission(candidate, { previous, intent: data.intent });
+        if (projectUpdate) report.projectUpdate = projectUpdate;
         if (previous) report.fieldsChanged = CONTENT_FIELDS.filter(key => JSON.stringify(previous[key]) !== JSON.stringify(candidate[key]));
         if (checking) return { report };
         if (!report.ok) throw Object.assign(fail(422, "谱文未通过服务端检查，未保存。"), { code: "validation", data: report });

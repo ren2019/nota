@@ -153,7 +153,7 @@ test('未接通同步的原图项目拒绝远程更新，不能删掉附件绕�
   const record=created.output.data.record;
   const rejected=await run(['update',record.id,'--revision','1','--file','proposal.json'],{title:'不能借元数据剥图',project:''});
   assert.equal(rejected.code,7);
-  assert.ok(rejected.output.data.diagnostics.some(d=>d.code==='project_update_unsupported'));
+  assert.ok(rejected.output.data.diagnostics.some(d=>d.code==='project_mapping'));
   const after=await(await raw(`/${record.id}`)).json();
   assert.equal(after.project,project);assert.equal(after.revision,1);
 });

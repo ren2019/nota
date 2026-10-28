@@ -149,3 +149,5 @@ export function checkSubmission(input: SubmissionInput, options: SubmissionOptio
   } else if (intent !== 'edit') error('intent_baseline', '转换检查需要指定旧谱编号和修订版本。');
   return finish(notes, measures.length);
 }
+
+export { synchronizeProject } from './project-update';
