@@ -386,7 +386,30 @@ try {
     assert.equal(await dialog(page).count(), 0);
     assert.equal(await page.locator("#library-list button").count(), count - 1);
   });
-  await test("remote deletion yields recoverable 404 for rename/delete without recreating a record", async (page) => {
+  await test("deleted scores remain discoverable after reload and restore their identity from the web", async (page) => {
+    const item = await seed("网页恢复曲谱");
+    await opened(page, item);
+    await more(page, "从库中删除");
+    assert.match(await dialog(page).textContent(), /已删除曲谱.*恢复/);
+    await choose(page, "从库中删除");
+    await page.locator("#start-screen").waitFor({ state: "visible" });
+    await page.reload();
+    await page.locator("#library-deleted").click();
+    await dialog(page).getByText(item.title, { exact: true }).waitFor();
+    await page.screenshot({ path: `${evidence}/deleted-library.png` });
+    await dialog(page).getByRole("button", { name: `恢复 ${item.title}`, exact: true }).click();
+    await dialog(page).getByText(/已恢复/).waitFor();
+    await choose(page, "关闭");
+    await page.getByRole("button", { name: `打开 ${item.title}`, exact: true }).click();
+    await page.locator("#nota-document-title").getByText(item.title, { exact: true }).waitFor();
+    assert.equal(new URL(page.url()).searchParams.get("song"), item.id);
+    assert.equal((await doc(page)).text, item.text);
+    const restored = (await api(`/${item.id}`)).body;
+    assert.equal(restored.revision, item.revision + 2);
+    assert.equal(restored.text, item.text);
+    await page.screenshot({ path: `${evidence}/restored-library-score.png` });
+  });
+  await test("remote deletion yields recoverable not-found/conflict without recreating a record", async (page) => {
     const item = await seed("远端删除对象");
     await opened(page, item);
     await api(`/${item.id}`, "DELETE", { revision: item.revision });
@@ -398,7 +421,7 @@ try {
     assert.equal((await doc(page)).text, item.text);
     await more(page, "从库中删除");
     await choose(page, "从库中删除");
-    await dialog(page).getByRole("alert").getByText(/不存在/).waitFor();
+    await dialog(page).getByRole("alert").getByText(/其他人|已删除/).waitFor();
     await choose(page, "取消");
     assert.equal((await api(`/${item.id}`)).status, 404);
     assert.equal((await doc(page)).text, item.text);

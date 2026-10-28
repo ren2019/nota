@@ -3,6 +3,7 @@ import { readFile, mkdir, writeFile, rename } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
 import path from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 
 const configFile = process.env.NOTA_CONFIG || path.join(homedir(), '.config/nota-library/config.json');
 const exits = { usage: 2, unauthorized: 3, connection: 4, not_found: 5, conflict: 6, validation: 7, result_unconfirmed: 8, ambiguous: 9, server: 10 };
@@ -41,11 +42,35 @@ async function request(config, suffix = '', init = {}) {
   return value;
 }
 
+function retainedContent(record) {
+  const { revision: _revision, updatedAt: _updatedAt, deletedAt: _deletedAt, ...retained } = record;
+  return retained;
+}
+
+async function changeDeletionState(config, command, id, revision) {
+  const restoring = command === 'restore';
+  const before = await request(config, restoring ? `/deleted/${id}` : `/${id}`);
+  if (before.id !== id || before.revision !== revision) throw fail('conflict', '曲谱版本已变化，请重新读取后确认；本次操作未提交。');
+  try {
+    await request(config, `/${id}${restoring ? '/restore' : ''}`, { method: restoring ? 'POST' : 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ revision }) });
+  } catch (error) {
+    // An interrupted response may follow a committed write. Verify, never retry the mutation.
+    if (!['connection', 'server'].includes(error.code)) throw error;
+  }
+  let after;
+  try { after = await request(config, restoring ? `/${id}` : `/deleted/${id}`); }
+  catch { throw fail('result_unconfirmed', '操作已提交，但结果尚未核实。请重新读取或查看已删除列表，不要自动重试。', { id, expectedRevision: revision + 1 }); }
+  if (after.id !== id || after.revision !== revision + 1 || !!after.deletedAt === restoring || !isDeepStrictEqual(retainedContent(before), retainedContent(after))) {
+    throw fail('result_unconfirmed', '回读状态与本次预期不一致，可能已有后续修改。请重新读取后确认。', { id, expectedRevision: revision + 1, actualRevision: after.revision });
+  }
+  return output({ ok: true, status: restoring ? 'restored' : 'deleted', data: { ...after, url: `${config.url}/?screen=detail&song=${id}` } });
+}
+
 async function main() {
   const [command, ...args] = process.argv.slice(2);
   if (command === '--version' || command === 'version') return output({ ok: true, status: 'version', data: { version: JSON.parse(await readFile(new URL('./package.json', import.meta.url), 'utf8')).version } });
   if (!command || command === '--help' || command === 'help') return output({ ok: true, status: 'help', data: {
-    commands: ['config --url https://nota.example.com [--token-stdin]', 'list', 'find <曲名>', 'get <曲谱唯一编号>', 'check --file <JSON文件>', 'create --file <JSON文件> [--allow-duplicate-title]'],
+    commands: ['config --url https://nota.example.com [--token-stdin]', 'list', 'find <曲名>', 'get <曲谱唯一编号>', 'check --file <JSON文件>', 'create --file <JSON文件> [--allow-duplicate-title]', 'deleted', 'delete <曲谱唯一编号> --revision <版本>', 'restore <曲谱唯一编号> --revision <版本>'],
     configuration: '凭据通过 NOTA_TOKEN 环境变量或 --token-stdin 配置；NOTA_CONFIG 可指定私有配置文件，默认 ~/.config/nota-library/config.json。',
     exits,
   } });
@@ -100,12 +125,18 @@ async function main() {
     if (saved.revision !== 1 || record.id !== saved.id || record.revision !== saved.revision || record.submission?.requestId !== requestId || !contentMatches) throw fail('result_unconfirmed', '回读内容或版本与本次保存不同；请核对实际状态，勿覆盖或重复新建。', { id: saved.id, revision: saved.revision, actualRevision: record.revision, requestId, file: args[at + 1] });
     return output({ ok: true, status: 'created', data: { record, url: `${config.url}/?song=${encodeURIComponent(record.id)}&screen=detail`, check: report, summary: `已新建并回读「${record.title}」，修订版本 ${record.revision}。` } });
   }
-  if (!['list', 'find', 'get'].includes(command)) throw fail('usage', '未知命令；运行 --help 查看用法。');
+  if (!['list', 'find', 'get', 'deleted', 'delete', 'restore'].includes(command)) throw fail('usage', '未知命令；运行 --help 查看用法。');
+
   if (command === 'get' && (args.length !== 1 || !/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(args[0]))) throw fail('usage', 'get 需要一个有效的曲谱唯一编号。');
   if (command === 'find' && (args.length !== 1 || !args[0].trim())) throw fail('usage', 'find 需要一个曲名查询。');
   if (command === 'list' && args.length) throw fail('usage', 'list 不接受参数。');
+  if (command === 'deleted' && args.length) throw fail('usage', 'deleted 不接受参数。');
+  if (command === 'delete' || command === 'restore') {
+    if (args.length !== 3 || !/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(args[0]) || args[1] !== '--revision' || !/^[1-9][0-9]*$/.test(args[2]) || !Number.isSafeInteger(Number(args[2]))) throw fail('usage', `${command} 需要有效曲谱编号和 --revision <版本>。`);
+    return changeDeletionState(await configuration(), command, args[0], Number(args[2]));
+  }
   const config = await configuration();
-  const data = await request(config, command === 'get' ? `/${args[0]}` : '');
+  const data = await request(config, command === 'get' ? `/${args[0]}` : command === 'deleted' ? '/deleted' : '');
   if (command === 'get') return output({ ok: true, status: 'read', data });
   if (!Array.isArray(data)) throw fail('server', '实例返回的曲谱列表格式不正确。');
   const matches = command === 'find' ? data.filter(item => typeof item.title === 'string' && item.title.toLocaleLowerCase().includes(args[0].trim().toLocaleLowerCase())) : data;
