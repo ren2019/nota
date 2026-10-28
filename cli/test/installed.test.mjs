@@ -36,8 +36,14 @@ test('独立安装的 CLI 配置后查找候选并完整读取真实 HTTP 库，
   await writeFile(path.join(storage, '22345678-1234-1234-1234-123456789abc.json'), JSON.stringify({ ...record, id: '22345678-1234-1234-1234-123456789abc', updatedAt: '2026-01-03T00:00:00Z' }));
   const middleware = libraryMiddleware(storage);
   // Real deployment-shaped entry: gateway guards browser routes; machine route uses Nota bearer verification.
+  let dropDeletionResponse = false;
   const server = createServer((req, res) => {
     if (!req.url.startsWith('/api/agent/') && req.headers.cookie !== 'session=fixture') { res.writeHead(401); res.end('网页需要登录'); return; }
+    const end = res.end;
+    res.end = function (...args) {
+      if (dropDeletionResponse && req.method === 'DELETE') { dropDeletionResponse = false; res.destroy(); return this; }
+      return end.apply(this, args);
+    };
     void middleware(req, res, () => { res.writeHead(404); res.end(); });
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -68,11 +74,31 @@ test('独立安装的 CLI 配置后查找候选并完整读取真实 HTTP 库，
     assert.equal(denied.status, 401);
     assert.equal((await denied.json()).code, 'unauthorized');
   }
+  assert.equal((await run(['delete', id, '--revision', '2'])).code, 6);
+  dropDeletionResponse = true;
+  const deleted = await run(['delete', id, '--revision', '3']);
+  assert.equal(deleted.code, 0);
+  assert.equal(deleted.output.status, 'deleted');
+  assert.equal(deleted.output.data.revision, 4);
+  assert.equal((await run(['get', id])).code, 5);
+  const removed = await run(['deleted']);
+  assert.deepEqual(removed.output.data.map(item => item.id), [id]);
+  assert.equal(removed.output.data[0].project, undefined);
+  assert.equal((await run(['restore', id, '--revision', '3'])).code, 6);
+  const restored = await run(['restore', id, '--revision', '4']);
+  assert.equal(restored.code, 0);
+  assert.equal(restored.output.status, 'restored');
+  assert.equal(restored.output.data.id, id);
+  assert.equal(restored.output.data.revision, 5);
+  const reread = await run(['get', id]);
+  for (const key of ['text', 'project', 'source', 'presentation', 'createdAt']) assert.deepEqual(reread.output.data[key], record[key]);
+  assert.deepEqual((await run(['deleted'])).output.data, []);
   await configureCredentials([1]);
   const revoked = await run(['list']);
   assert.equal(revoked.code, 3);
   assert.equal(revoked.output.code, 'unauthorized');
   assert.equal((await run(['list'], { NOTA_TOKEN: tokens[1] })).code, 0);
+  for (const args of [['deleted'], ['delete', id, '--revision', '5'], ['restore', id, '--revision', '5']]) assert.equal((await run(args)).code, 3);
   await rm(credentialsFile);
   assert.equal((await run(['list'], { NOTA_TOKEN: tokens[1] })).code, 3);
   const invalid = await run(['get', 'not-an-id']);

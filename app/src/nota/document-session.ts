@@ -7,7 +7,7 @@ import { provenanceFooterSource } from './score-footer-source';
 
 export interface LibraryItem {
   id: string; title: string; format: DocFormatId; key: string; meter: string;
-  updatedAt: string; revision: number; source?: SourceProvenance;
+  updatedAt: string; revision: number; source?: SourceProvenance; deletedAt?: string;
 }
 /** Serialized songs/drafts carry layout, never browser-wide Nota output preferences. Legacy fields are ignored on restore. */
 type RecordRenderState=Omit<DocumentLayoutState,'jianpuAccidentals' | 'practiceFontSize'> & Partial<Pick<DocumentLayoutState,'jianpuAccidentals' | 'practiceFontSize'>>;
@@ -48,6 +48,10 @@ export async function renameLibraryScore(existing:LibraryItem,title:string,endpo
 }
 export function deleteLibraryScore(existing:LibraryItem,endpoint?:string):Promise<{id:string;revision:number;deleted:true}> {
   return libraryRequest(`/${encodeURIComponent(existing.id)}`,{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({revision:existing.revision})},endpoint);
+}
+/** Restores the deleted record as the same song, with a new revision. */
+export function restoreLibraryScore(existing:LibraryItem,endpoint?:string):Promise<LibraryItem> {
+  return libraryRequest(`/${encodeURIComponent(existing.id)}/restore`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({revision:existing.revision})},endpoint);
 }
 export interface LibraryDraftContext {
   version:1; current:LibraryItem | null; title:string; source?:SourceProvenance;

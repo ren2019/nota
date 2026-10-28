@@ -4,7 +4,7 @@ import type { App } from "../editor/app";
 import { showConfirmDialog, showFormDialog, showUnsavedLibraryDialog, openModal } from "../editor/dialogs";
 import { keyLabel } from "./convert";
 import "./library.css";
-import { CurrentDocumentSession, libraryRequest as request, LibraryError, writeLibraryScore, bytesBase64, type LibraryItem, type LibrarySaveResult } from "./document-session";
+import { CurrentDocumentSession, libraryRequest as request, LibraryError, writeLibraryScore, restoreLibraryScore, bytesBase64, type LibraryItem, type LibrarySaveResult } from "./document-session";
 import { type SourceCandidate } from "./source-import";
 
 /** One shared library on the Nota host; opening a score never re-runs recognition. */
@@ -16,7 +16,7 @@ export function mountLibrary(app: App, revealWorkspace: (mode?: "practice" | "ed
     <div class="library-heading">
       <div><span class="eyebrow"><span data-i18n="nota.ia.htmlPracticeTogetherKeepFavorites36">${t("nota.ia.htmlPracticeTogetherKeepFavorites36")}</span></span><h2 id="library-title"><span data-i18n="nota.ia.htmlOurScoreLibrary37">${t("nota.ia.htmlOurScoreLibrary37")}</span><span id="library-count"></span></h2>
       <p><span data-i18n="nota.ia.htmlKeepFavoriteSongsHereAnd38">${t("nota.ia.htmlKeepFavoriteSongsHereAnd38")}</span></p></div>
-      <button id="library-refresh" class="library-refresh" type="button"><span data-i18n="nota.ia.htmlRefresh39">${t("nota.ia.htmlRefresh39")}</span></button>
+      <div class="library-actions"><button id="library-deleted" class="library-refresh" type="button"><span data-i18n="nota.ia.deletedScores">${t("nota.ia.deletedScores")}</span></button><button id="library-refresh" class="library-refresh" type="button"><span data-i18n="nota.ia.htmlRefresh39">${t("nota.ia.htmlRefresh39")}</span></button></div>
     </div>
     <label class="library-search"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg>
       <input id="library-search" type="search" placeholder="${t("nota.ia.htmlSearchTitleOrKey42")}" data-i18n-placeholder="nota.ia.htmlSearchTitleOrKey42" aria-label="${t("nota.ia.htmlSearchScoreLibrary43")}" data-i18n-aria="nota.ia.htmlSearchScoreLibrary43" autocomplete="off"></label>
@@ -96,6 +96,38 @@ export function mountLibrary(app: App, revealWorkspace: (mode?: "practice" | "ed
   }
   function removeItem(id:string) {
     mutationVersion++;items=items.filter(item => item.id !== id);render();
+  }
+
+  async function showDeleted() {
+    const body=document.createElement('div');body.className='library-deleted-list';
+    const explanation=document.createElement('p');explanation.textContent=t('nota.ia.deletedScoresExplanation');
+    const feedback=document.createElement('p');feedback.setAttribute('role','status');feedback.textContent=t('nota.ia.loadingDeletedScores');
+    const rows=document.createElement('div');body.append(explanation,feedback,rows);
+    const dismiss=document.createElement('button');dismiss.type='button';dismiss.textContent=t('nota.ia.close');
+    let closed=false;
+    const {close}=openModal({title:t('nota.ia.deletedScores'),boxClass:'nota-management-box',body:[body],footer:[dismiss],onClose:() => {closed=true;}});dismiss.onclick=close;
+    try {
+      const deleted=await request<LibraryItem[]>('/deleted');
+      if(closed) return;
+      feedback.textContent=deleted.length ? '' : t('nota.ia.noDeletedScores');
+      for(const item of deleted) {
+        const row=document.createElement('div');row.className='library-item';
+        const copy=document.createElement('span');copy.className='library-item-copy';
+        const title=document.createElement('strong');title.textContent=item.title;
+        const date=document.createElement('span');date.textContent=item.deletedAt ? new Date(item.deletedAt).toLocaleString() : '';
+        copy.append(title,date);
+        const restore=document.createElement('button');restore.type='button';restore.className='library-refresh';restore.textContent=t('nota.ia.restoreScore');restore.setAttribute('aria-label',t('nota.ia.restoreNamedScore',{title:item.title}));
+        row.append(copy,restore);rows.append(row);
+        restore.onclick=() => void (async() => {
+          restore.disabled=true;feedback.textContent=t('nota.ia.restoringScore');
+          try {
+            const restored=await restoreLibraryScore(item);
+            applyMetadata(restored);void refresh();
+            if(!closed) {row.remove();feedback.textContent=t('nota.ia.restoreSuccess',{title:item.title});}
+          } catch(error) {if(!closed) {feedback.textContent=error instanceof Error ? error.message : String(error);restore.disabled=false;}}
+        })();
+      }
+    } catch(error) {if(!closed) feedback.textContent=error instanceof Error ? error.message : String(error);}
   }
 
   async function open(item: LibraryItem, button: HTMLButtonElement) {
@@ -228,6 +260,7 @@ export function mountLibrary(app: App, revealWorkspace: (mode?: "practice" | "ed
   }
   onLangChange(render);
   search.addEventListener("input", render);
+  root.querySelector("#library-deleted")!.addEventListener("click", () => void showDeleted());
   root.querySelector("#library-refresh")!.addEventListener("click", () => void refresh());
   void refresh();
   return { save, refresh, applyMetadata, removeItem, confirmReplace, adoptCandidate, detach: () => session.detach() };

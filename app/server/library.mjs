@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, writeFile, rename, unlink } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile, rename } from "node:fs/promises";
 import { randomUUID, createHash } from "node:crypto";
 import { isIP } from "node:net";
 import path from "node:path";
@@ -22,6 +22,17 @@ export function libraryMiddleware(directory = defaultDirectory) {
     try { return JSON.parse(await readFile(file(id), "utf8")); }
     catch (e) { if (e.code === "ENOENT") throw fail(404, "这份曲谱不存在或已被移动。"); throw e; }
   };
+  const loadActive = async (id) => {
+    const record = await load(id);
+    if (record.deletedAt) throw fail(404, "这份曲谱已删除，可在已删除曲谱中恢复。");
+    return record;
+  };
+  const persist = async (record) => {
+    await mkdir(directory, { recursive: true });
+    const temporary = path.join(directory, `${record.id}.${randomUUID()}.tmp`);
+    await writeFile(temporary, JSON.stringify(record), { mode: 0o600 });
+    await rename(temporary, file(record.id));
+  };
   const serialize = (work) => {
     const result = writes.then(work);
     writes = result.catch(() => {});
@@ -42,11 +53,18 @@ export function libraryMiddleware(directory = defaultDirectory) {
       }
       const host = new URL(`http://${req.headers.host ?? ""}`).hostname.toLowerCase();
       if (host !== "localhost" && !isIP(host.replace(/^\[|\]$/g, "")) && !allowedHosts.includes(host)) throw fail(403, "请通过已配置的 Nota 地址访问曲谱库。");
-      const match = /^\/api\/library(?:\/([^/]+))?\/?$/.exec(url.pathname);
-      if (!match || (match[1] && !ID.test(match[1]))) throw fail(404, "未找到曲谱。");
-      const id = match[1];
+      const match = /^\/api\/library(?:\/(deleted))?(?:\/([^/]+))?(?:\/(restore))?\/?$/.exec(url.pathname);
+      if (!match || (match[2] && !ID.test(match[2])) || (match[3] && (!match[2] || match[1]))) throw fail(404, "未找到曲谱。");
+      const deletedRoute = !!match[1];
+      const id = match[2];
+      const restoring = !!match[3];
       if (req.method === "GET") {
-        if (id) return send(200, await load(id));
+        if (restoring) throw fail(405, "不支持此操作。");
+        if (id) {
+          const record = await load(id);
+          if (!!record.deletedAt !== deletedRoute) throw fail(404, "这份曲谱不存在或已删除，可在已删除曲谱中恢复。");
+          return send(200, record);
+        }
         let names;
         try { names = await readdir(directory); }
         catch (e) { if (e.code === "ENOENT") return send(200, []); throw e; }
@@ -55,9 +73,11 @@ export function libraryMiddleware(directory = defaultDirectory) {
             try { return summary(JSON.parse(await readFile(path.join(directory, name), "utf8"))); }
             catch (error) { if (error.code === "ENOENT") return null; throw error; }
           }));
-        return send(200, records.filter(Boolean).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
+        return send(200, records.filter(record => record && !!record.deletedAt === deletedRoute).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
       }
-      if ((req.method !== "POST" || id) && (req.method !== "PUT" || !id) && (req.method !== "DELETE" || !id)) throw fail(405, "不支持此操作。");
+      if (deletedRoute) throw fail(405, "不支持此操作。");
+      if (restoring && req.method !== "POST") throw fail(405, "不支持此操作。");
+      if (!restoring && (req.method !== "POST" || id) && (req.method !== "PUT" || !id) && (req.method !== "DELETE" || !id)) throw fail(405, "不支持此操作。");
       if (!req.headers["content-type"]?.startsWith("application/json")) throw fail(415, "保存内容格式不正确。");
       if (req.headers.origin && new URL(req.headers.origin).host !== req.headers.host) throw fail(403, "请从 Nota 页面保存曲谱。");
       let size = 0;
@@ -70,13 +90,18 @@ export function libraryMiddleware(directory = defaultDirectory) {
       let data;
       try { data = JSON.parse(Buffer.concat(chunks).toString("utf8")); }
       catch { throw fail(400, "保存内容格式不正确。"); }
-      if (req.method === "DELETE") {
+      if (req.method === "DELETE" || restoring) {
         if (!Number.isSafeInteger(data?.revision) || data.revision < 1) throw fail(400, "请提供有效的曲谱修订版本。");
         const deleted = await serialize(async () => {
           const previous = await load(id);
-          if (data.revision !== previous.revision) throw fail(409, "其他人刚刚更新了这份曲谱，尚未删除。请重新打开后确认。");
-          await unlink(file(id));
-          return { id, revision: previous.revision, deleted: true };
+          if (data.revision !== previous.revision) throw fail(409, "其他人刚刚更新了这份曲谱，本次操作尚未完成。请重新读取后确认。");
+          if (restoring ? !previous.deletedAt : previous.deletedAt) throw fail(409, restoring ? "这份曲谱已经恢复。请刷新曲谱库。" : "这份曲谱已经删除。可从已删除曲谱中恢复。");
+          const now = new Date().toISOString();
+          const record = { ...previous, revision: previous.revision + 1, updatedAt: now };
+          if (restoring) delete record.deletedAt;
+          else record.deletedAt = now;
+          await persist(record);
+          return { ...summary(record), deleted: !restoring };
         });
         return send(200, deleted);
       }
@@ -86,7 +111,7 @@ export function libraryMiddleware(directory = defaultDirectory) {
         throw fail(400, "请填写曲名，并提供有效的曲谱内容。");
       }
       const saved = await serialize(async () => {
-        const previous = id ? await load(id) : null;
+        const previous = id ? await loadActive(id) : null;
         if (previous && data.revision !== previous.revision) throw fail(409, "其他人刚刚更新了这份曲谱，请重新打开，或另存一份。");
         const now = new Date().toISOString();
         const record = {
@@ -101,10 +126,7 @@ export function libraryMiddleware(directory = defaultDirectory) {
           }} : {}),
           ...(data.presentation && typeof data.presentation === "object" ? { presentation: data.presentation } : {}),
         };
-        await mkdir(directory, { recursive: true });
-        const temporary = path.join(directory, `${record.id}.${randomUUID()}.tmp`);
-        await writeFile(temporary, JSON.stringify(record), { mode: 0o600 });
-        await rename(temporary, file(record.id));
+        await persist(record);
         return summary(record);
       });
       send(id ? 200 : 201, saved);
